@@ -1988,6 +1988,9 @@ document.getElementById('legendToggleBtn').addEventListener('click', () => {
 });
 document.getElementById('prevBtn').addEventListener('click', () => jumpToChange(-1));
 document.addEventListener('keydown', e => {
+  // Ignore shortcuts when typing in any input/textarea/contenteditable
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
   if (e.shiftKey && (e.key==='N'||e.key==='n')) { e.preventDefault(); jumpToChange(1); }
   if (e.shiftKey && (e.key==='P'||e.key==='p')) { e.preventDefault(); jumpToChange(-1); }
 });
