@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>MD Diff v4.0</title>
+<title>MD Diff v4.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   :root {
@@ -1162,7 +1162,7 @@
     <!-- PROGRESS PANEL -->
     <div class="panel" id="panel-progress">
       <h2>Progres dokumentu</h2>
-      <div class="pdesc">Analýza a trend sledování obsahu. Klikni na kartu pro detail řádků. Uloží snapshot pro sledování trendu.</div>
+      <div class="pdesc">Analýza obsahu md souborů. Nahraj soubory přímo zde nebo použij aktuální diff. Pravidla se automaticky přizpůsobí podle názvu souboru.</div>
 
       <!-- Tabs -->
       <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:18px;">
@@ -1173,16 +1173,42 @@
 
       <!-- METRICS TAB -->
       <div id="progress-tab-metrics" class="storage-section active">
+
+        <!-- File source selector -->
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:14px;">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;margin-bottom:10px;">Zdroj dat pro analýzu</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+            <div>
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:5px;">STARÉ / PŘED <span id="progOldName" style="color:var(--del-text);font-family:var(--md-mono);font-size:10px;">—</span></div>
+              <div style="display:flex;gap:6px;">
+                <input type="file" id="progOldFile" accept=".md,.txt" style="flex:1;font-size:11px;color:var(--text-dim);">
+                <button class="btn sec sm" id="progUseOldDiff" title="Použít OLD z aktuálního diffu">← Diff</button>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:5px;">NOVÉ / PO <span id="progNewName" style="color:var(--add-text);font-family:var(--md-mono);font-size:10px;">—</span></div>
+              <div style="display:flex;gap:6px;">
+                <input type="file" id="progNewFile" accept=".md,.txt" style="flex:1;font-size:11px;color:var(--text-dim);">
+                <button class="btn sec sm" id="progUseNewDiff" title="Použít NEW z aktuálního diffu">← Diff</button>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn sm" id="progAnalyzeBtn">🔍 Analyzovat</button>
+            <span style="font-size:11px;color:var(--text-dim);" id="progAutoRulesInfo"></span>
+          </div>
+        </div>
+
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
-          <button class="btn sm" id="saveProgressSnapshot" title="Uloží aktuální metriky jako snapshot pro sledování trendu">
-            📸 Uložit snapshot
-          </button>
+          <button class="btn sm" id="saveProgressSnapshot">📸 Uložit snapshot</button>
           <button class="btn sec sm" id="exportProgressReport">📄 Export reportu</button>
           <span style="font-size:11px;color:var(--text-dim);align-self:center;" id="progressSnapshotInfo"></span>
         </div>
+
         <div class="metrics-grid" id="metricsGrid">
           <div class="metric-card"><div class="mlbl">Řádků</div><div class="mval" id="m-lines">—</div><div class="mdelta" id="m-lines-delta"></div></div>
         </div>
+
         <!-- Matched lines detail -->
         <div id="progressMatchDetail" style="display:none;margin-top:16px;">
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;margin-bottom:10px;" id="progressMatchTitle">Nalezené řádky</div>
@@ -5074,6 +5100,217 @@ window.transferSessionToStorage = async function(sid) {
   const btn = document.getElementById('transferToStorageBtn');
   if (btn) { btn.textContent = 'Preneseno (' + n + ')'; btn.style.color = 'var(--add-text)'; btn.style.borderColor = 'var(--add-text)'; }
 };
+
+
+// ================================================================
+// ENHANCED PROGRESS — file upload + auto rules by filename
+// ================================================================
+
+// File type rules presets by filename pattern
+const FILE_RULES_PRESETS = {
+  todo: [
+    { color: '#6ee79a', name: 'Hotové',    regex: '^\\s*[-*]\\s*\\[x\\]' },
+    { color: '#ff6b6b', name: 'Kritické',  regex: '🔴|🚨|CRITICAL|kritick|\\bP1\\b' },
+    { color: '#ffd080', name: 'Konflikt',  regex: '⚠️|⛔|CONFLICT|konflikt|\\bBLOCK' },
+    { color: '#60a5fa', name: 'Otevřené',  regex: '^\\s*[-*]\\s*\\[\\s\\]' },
+    { color: '#c4a0ff', name: 'Nové úkoly', regex: '✨|🆕|^\\s*[-*]\\s*\\[\\s\\].*TODO-0[5-9]' },
+  ],
+  bugs: [
+    { color: '#ff6b6b', name: 'Otevřené bugy', regex: 'OPEN-\\d+|🔴|status.*open' },
+    { color: '#6ee79a', name: 'Vyřešené',      regex: 'CLOSED|FIXED|✅|\\[x\\]' },
+    { color: '#ffd080', name: 'Reopen',         regex: 'reopen|REOPEN|reopened' },
+    { color: '#f97316', name: 'Kritické bugy',  regex: 'CRITICAL|P1|blocker|🚨' },
+    { color: '#60a5fa', name: 'FIX záznamy',    regex: '^#{3,4}\\s+FIX-\\d+' },
+  ],
+  features: [
+    { color: '#6ee79a', name: 'Implementováno', regex: '✅|\\[x\\]|DONE|implemented' },
+    { color: '#60a5fa', name: 'Plánováno',      regex: '📋|PLANNED|\\[ \\]|TODO' },
+    { color: '#ffd080', name: 'In progress',    regex: '🔄|IN.PROGRESS|WIP' },
+    { color: '#c4a0ff', name: 'Nové features',  regex: '✨|NEW|🆕' },
+    { color: '#ff6b6b', name: 'Zrušeno',        regex: '❌|CANCELLED|REMOVED' },
+  ],
+  context: [
+    { color: '#60a5fa', name: 'Sekce H2',      regex: '^##\\s' },
+    { color: '#6ee79a', name: 'Sekce H3',      regex: '^###\\s' },
+    { color: '#ffd080', name: 'Důležité',       regex: '\\*\\*[^*]+\\*\\*|DŮLEŽITÉ|IMPORTANT' },
+    { color: '#c4a0ff', name: 'Kód reference', regex: '`[^`]+`' },
+    { color: '#f97316', name: 'TODO inline',   regex: 'TODO:|FIXME:|POZOR:' },
+  ],
+  architecture: [
+    { color: '#60a5fa', name: 'ADR záznamy',   regex: '^##\\s.*ADR|^###\\s' },
+    { color: '#6ee79a', name: 'Rozhodnutí',    regex: 'rozhodnut|decision|DECISION' },
+    { color: '#ffd080', name: 'Otázky',        regex: '\\?|TODO:|OTÁZKA:' },
+    { color: '#c4a0ff', name: 'Technologie',   regex: 'Firebase|React|Node|API|REST|SQL' },
+    { color: '#f97316', name: 'Deprecated',    regex: 'deprecated|DEPRECATED|zastaral' },
+  ],
+  decisions: [
+    { color: '#60a5fa', name: 'Rozhodnutí',  regex: '^##\\s|^###\\s' },
+    { color: '#6ee79a', name: 'Schváleno',   regex: '✅|approved|APPROVED|schválen' },
+    { color: '#ff6b6b', name: 'Zamítnuto',   regex: '❌|rejected|REJECTED' },
+    { color: '#ffd080', name: 'Otevřené',    regex: '🔄|OPEN|\\bpending\\b' },
+    { color: '#c4a0ff', name: 'Reference',   regex: 'viz\\s+`|see\\s+`|related' },
+  ],
+};
+
+// Detect file type from filename
+function detectFileType(filename) {
+  if (!filename) return null;
+  const name = filename.toLowerCase().replace(/\.(md|txt)$/i, '');
+  for (const key of Object.keys(FILE_RULES_PRESETS)) {
+    if (name.includes(key)) return key;
+  }
+  // Also check partial matches
+  if (name.includes('bug')) return 'bugs';
+  if (name.includes('feat')) return 'features';
+  if (name.includes('arch')) return 'architecture';
+  if (name.includes('ctx') || name.includes('cont')) return 'context';
+  if (name.includes('dec') || name.includes('adr')) return 'decisions';
+  return null;
+}
+
+// Progress-specific file state
+let progOldLines = null, progNewLines = null;
+let progOldFileName = '', progNewFileName = '';
+
+function loadProgressFile(side, text, name) {
+  const lines = text.split('\n');
+  if (side === 'old') {
+    progOldLines = lines; progOldFileName = name;
+    document.getElementById('progOldName').textContent = name;
+  } else {
+    progNewLines = lines; progNewFileName = name;
+    document.getElementById('progNewName').textContent = name;
+  }
+  // Auto-detect file type and suggest rules
+  const detectedOld = detectFileType(progOldFileName);
+  const detectedNew = detectFileType(progNewFileName);
+  const detected = detectedOld || detectedNew;
+  const infoEl = document.getElementById('progAutoRulesInfo');
+  if (detected && FILE_RULES_PRESETS[detected]) {
+    infoEl.innerHTML = `Rozpoznán typ <b style="color:var(--accent)">${detected}.md</b> — <a href="#" onclick="applyFilePreset('${detected}');return false;" style="color:var(--accent);">použít doporučená pravidla</a>`;
+  } else {
+    infoEl.textContent = 'Typ souboru nerozpoznán — použijí se aktuální pravidla.';
+  }
+}
+
+window.applyFilePreset = function(type) {
+  const preset = FILE_RULES_PRESETS[type];
+  if (!preset) return;
+  if (!confirm('Nahradit aktuální pravidla Progresu pravidly pro "' + type + '.md"?')) return;
+  progressRules = JSON.parse(JSON.stringify(preset));
+  saveProgRules();
+  renderRulesEditor();
+  updateProgressMetrics();
+  document.getElementById('progAutoRulesInfo').innerHTML = '✅ Pravidla pro <b>' + type + '.md</b> aplikována.';
+};
+
+// File input handlers
+document.getElementById('progOldFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => loadProgressFile('old', ev.target.result, f.name);
+  r.readAsText(f); e.target.value = '';
+});
+document.getElementById('progNewFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => loadProgressFile('new', ev.target.result, f.name);
+  r.readAsText(f); e.target.value = '';
+});
+
+// Use from current diff
+document.getElementById('progUseOldDiff').addEventListener('click', () => {
+  if (!lastDiffResult?.oldLines?.length) { alert('Nejdřív proveď diff v záložce ⇆.'); return; }
+  loadProgressFile('old', lastDiffResult.oldLines.join('\n'), oldFileName || 'diff-old');
+});
+document.getElementById('progUseNewDiff').addEventListener('click', () => {
+  if (!lastDiffResult?.newLines?.length) { alert('Nejdřív proveď diff v záložce ⇆.'); return; }
+  loadProgressFile('new', lastDiffResult.newLines.join('\n'), newFileName || 'diff-new');
+});
+
+// Analyze button
+document.getElementById('progAnalyzeBtn').addEventListener('click', () => {
+  if (!progOldLines && !progNewLines) { alert('Nahraj alespoň jeden soubor.'); return; }
+  updateProgressMetrics();
+});
+
+// Override updateProgressMetrics to use progOldLines/progNewLines if set
+const _origUpdateProgressMetrics = updateProgressMetrics;
+function updateProgressMetrics() {
+  const grid = document.getElementById('metricsGrid');
+  // Use progress-specific files if available, otherwise fall back to diff
+  const ol = progOldLines || lastDiffResult?.oldLines || [];
+  const nl = progNewLines || lastDiffResult?.newLines || [];
+
+  if (!ol.length && !nl.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-dim);padding:30px;font-size:12px;">Nahraj soubory výše nebo proveď diff v záložce ⇆.</div>';
+    return;
+  }
+
+  let html = `<div class="metric-card">
+    <div class="mlbl">Řádků
+      ${progOldFileName ? '<span style="font-family:var(--md-mono);font-size:9px;opacity:0.7;display:block;">' + esc(progOldFileName) + ' → ' + esc(progNewFileName||'?') + '</span>' : ''}
+    </div>
+    <div class="mval">${nl.length || ol.length}</div>
+    <div class="mdelta">${fmtDelta((nl.length||0)-(ol.length||0))} vs STARÉ</div>
+  </div>`;
+
+  for (const r of progressRules) {
+    if (!r.regex) continue;
+    const oc = countM(ol, r.regex), nc = countM(nl.length ? nl : ol, r.regex);
+    const sr = r.regex.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html += `<div class="metric-card" style="cursor:pointer;" onclick="showProgressMatch('${r.name}','${sr}','${r.color}')" title="Klikni → zobrazit řádky">
+      <div class="mlbl"><span style="display:inline-block;width:10px;height:10px;background:${r.color};border-radius:2px;margin-right:4px;"></span>${esc(r.name)} <span style="opacity:0.5;font-size:9px;">▾</span></div>
+      <div class="mval" style="color:${r.color}">${nl.length ? nc : oc}</div>
+      <div class="mdelta">${nl.length ? fmtDelta(nc-oc) + ' vs STARÉ' : ''}</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+// Override showProgressMatch to use prog files
+const _origShowProgressMatch = window.showProgressMatch;
+window.showProgressMatch = function(ruleName, regex, color) {
+  const ol = progOldLines || lastDiffResult?.oldLines || [];
+  const nl = progNewLines || lastDiffResult?.newLines || [];
+  const det = document.getElementById('progressMatchDetail');
+  const oldEl = document.getElementById('progressMatchOld');
+  const newEl = document.getElementById('progressMatchNew');
+  det.style.display = 'block';
+  document.getElementById('progressMatchTitle').textContent = 'Nalezené řádky — ' + ruleName;
+  let re; try { re = new RegExp(regex, 'i'); } catch(e) { return; }
+  const fmt = (lines) => {
+    const matched = lines.map((l,i) => ({l,i})).filter(({l}) => re.test(l));
+    if (!matched.length) return '<span style="color:var(--text-muted);font-style:italic;">žádné shody</span>';
+    return matched.map(({l,i}) =>
+      `<div style="padding:2px 0;border-bottom:1px solid var(--border-soft);">
+        <span style="color:var(--text-muted);margin-right:8px;font-size:10px;">${i+1}</span>
+        <span style="color:${color}">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>
+      </div>`
+    ).join('');
+  };
+  oldEl.innerHTML = fmt(ol);
+  newEl.innerHTML = fmt(nl.length ? nl : ol);
+  det.scrollIntoView({behavior:'smooth', block:'nearest'});
+};
+
+// Auto-suggest snapshot after diff
+const _origRunDiff = runDiff;
+// Hook into saveToHistory to also suggest snapshot
+const _origSaveToHistory2 = saveToHistory;
+function saveToHistory() {
+  _origSaveToHistory2 && _origSaveToHistory2();
+  // Show subtle snapshot reminder
+  const info = document.getElementById('progressSnapshotInfo');
+  if (info) {
+    info.innerHTML = '<span style="color:var(--mod-text);">💡 Nový diff — nezapomeň uložit snapshot!</span>';
+    setTimeout(() => { if(info.textContent.includes('snapshot')) info.textContent = ''; }, 8000);
+  }
+}
+
+// Sync progOldLines/progNewLines when diff runs
+const _origRunDiffProg = runDiff;
+// Patch lastDiffResult usage — already handled above by checking lastDiffResult
 
 </script>
 
