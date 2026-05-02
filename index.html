@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>MD Diff v3.7</title>
+<title>MD Diff v3.9</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   :root {
@@ -394,7 +394,7 @@
   /* ====== PANEL (sidebar) ====== */
   .panel { display: none; flex: 1; overflow: auto; padding: 26px 34px; background: var(--bg); }
   .panel.active { display: flex; flex-direction: column; }
-  .panel.active:not(#panel-diff):not(#panel-aimerge):not(#panel-explorer) { overflow-y: auto; }
+  .panel.active:not(#panel-diff):not(#panel-aimerge):not(#panel-explorer):not(#panel-projects) { overflow-y: auto; }
   #panel-explorer { padding: 0; overflow: hidden; }
 
   #panel-diff.active { padding: 0; }
@@ -579,6 +579,200 @@
   .aimerge-body::-webkit-scrollbar-track { background: var(--bg); }
   .aimerge-body::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 5px; border: 2px solid var(--bg); }
 
+  /* === BLOCK EDITOR === */
+  .block-editor-wrap { display: none; }
+  .block-editor-wrap.active { display: block; }
+  .block-editor-toolbar {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px 6px 0 0; border-bottom: none;
+  }
+  .block-editor-toolbar label {
+    font-size: 11px; color: var(--text-dim); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .block-list {
+    border: 1px solid var(--border); border-radius: 0 0 6px 6px;
+    background: var(--bg); max-height: 520px; overflow-y: auto;
+    padding: 4px;
+  }
+  .block-item {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 5px; margin-bottom: 4px; cursor: grab;
+    transition: border-color 0.12s, box-shadow 0.12s;
+    user-select: none; position: relative;
+  }
+  .block-item:hover { border-color: var(--text-dim); }
+  .block-item.dragging {
+    opacity: 0.5; cursor: grabbing;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  .block-item.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(79,142,247,0.3);
+  }
+  .block-item.drag-over-bottom { border-bottom: 2px solid var(--accent); }
+  .block-item.drag-over-top { border-top: 2px solid var(--accent); }
+  .block-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; cursor: grab;
+  }
+  .block-drag-handle {
+    color: var(--text-muted); font-size: 14px; flex-shrink: 0;
+    cursor: grab; padding: 0 2px; line-height: 1;
+  }
+  .block-drag-handle:hover { color: var(--text-dim); }
+  .block-type {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    font-family: var(--md-mono); font-weight: 600; flex-shrink: 0;
+  }
+  .block-type.heading { background: var(--accent-soft); color: var(--accent); }
+  .block-type.paragraph { background: var(--bg-alt); color: var(--text-dim); }
+  .block-type.list { background: rgba(110,231,154,0.12); color: var(--add-text); }
+  .block-type.code { background: rgba(167,139,250,0.12); color: #a78bfa; }
+  .block-type.blockquote { background: rgba(255,208,128,0.1); color: var(--mod-text); }
+  .block-title {
+    flex: 1; font-size: 12.5px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--md-font);
+  }
+  .block-title.is-heading { font-weight: 600; }
+  .block-lines {
+    font-size: 10px; color: var(--text-muted); flex-shrink: 0;
+    font-family: var(--md-mono);
+  }
+  .block-toggle {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 0 4px; font-size: 11px; flex-shrink: 0;
+  }
+  .block-toggle:hover { color: var(--text); }
+  .block-content-preview {
+    display: none; padding: 0 10px 8px 34px;
+    font-family: var(--md-mono); font-size: 11.5px; line-height: 1.6;
+    color: var(--text-dim); white-space: pre-wrap; max-height: 200px; overflow-y: auto;
+    border-top: 1px solid var(--border-soft); padding-top: 6px; margin-top: 0;
+  }
+  .block-content-preview.open { display: block; }
+  .block-actions {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    display: none; gap: 4px; align-items: center;
+  }
+  .block-item:hover .block-actions { display: flex; }
+  .block-action-btn {
+    background: var(--bg-alt); border: 1px solid var(--border);
+    color: var(--text-dim); padding: 2px 6px; border-radius: 3px;
+    font-size: 11px; cursor: pointer; white-space: nowrap;
+  }
+  .block-action-btn:hover { background: var(--bg-header); color: var(--text); }
+
+  /* View toggle for result */
+  .result-view-tabs {
+    display: flex; gap: 0; border: 1px solid var(--border); border-radius: 4px;
+    overflow: hidden; margin-bottom: 8px; width: fit-content;
+  }
+  .result-view-tab {
+    padding: 5px 13px; font-size: 11px; font-weight: 600; border: none;
+    background: transparent; color: var(--text-dim); cursor: pointer;
+    font-family: var(--md-sans); transition: background 0.1s;
+  }
+  .result-view-tab.active { background: var(--accent-soft); color: var(--accent); }
+  .result-view-tab:hover:not(.active) { background: var(--bg-card); color: var(--text); }
+
+  /* === PROJECTS PANEL === */
+  .projects-layout { display: flex; height: 100%; overflow: hidden; min-height: 0; }
+  .projects-nav {
+    width: 240px; flex-shrink: 0; background: var(--bg-alt);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .projects-nav-hdr {
+    padding: 12px 14px; flex-shrink: 0; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .projects-nav-hdr h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 700; flex: 1; }
+  .projects-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .projects-list::-webkit-scrollbar { width: 5px; }
+  .projects-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .project-item {
+    padding: 0; cursor: pointer; border-left: 2px solid transparent;
+    transition: background 0.1s;
+  }
+  .project-item:hover > .project-item-hdr { background: rgba(255,255,255,0.03); }
+  .project-item.active > .project-item-hdr { background: var(--accent-soft); border-left: none; }
+  .project-item-hdr {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+  }
+  .project-item-hdr .pname { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .project-item-hdr .psessions { font-size: 10px; color: var(--text-muted); font-family: var(--md-mono); }
+
+  .session-item {
+    padding: 6px 14px 6px 30px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    border-left: 2px solid transparent; transition: background 0.1s;
+  }
+  .session-item:hover { background: rgba(255,255,255,0.03); }
+  .session-item.active { background: var(--accent-soft); border-left-color: var(--accent); }
+  .session-item .sname { flex: 1; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-item.active .sname { color: var(--accent); }
+  .session-item .sdate { font-size: 10px; color: var(--text-muted); font-family: var(--md-mono); }
+  .session-item .scount { font-size: 10px; color: var(--text-muted); font-family: var(--md-mono); }
+
+  /* Projects main content */
+  .projects-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+  .projects-main-hdr {
+    padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--bg-alt);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap;
+  }
+  .projects-main-hdr h2 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); font-family: var(--md-font); }
+  .projects-main-hdr .pmeta { font-size: 11px; color: var(--text-dim); }
+  .projects-main-body { flex: 1; overflow-y: auto; padding: 20px; min-height: 0; }
+
+  /* Session detail */
+  .session-detail-hdr {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .session-detail-hdr h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+  .session-files-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px;
+    margin-bottom: 20px;
+  }
+  .session-file-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+    transition: border-color 0.12s;
+  }
+  .session-file-card:hover { border-color: var(--text-dim); }
+  .session-file-card .sfc-top { display: flex; align-items: center; gap: 8px; }
+  .session-file-card .sfc-icon { font-size: 16px; flex-shrink: 0; }
+  .session-file-card .sfc-name { flex: 1; font-family: var(--md-mono); font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-file-card .sfc-type { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 700; flex-shrink: 0; }
+  .sfc-type.current { background: var(--accent-soft); color: var(--accent); }
+  .sfc-type.patch { background: rgba(255,208,128,0.12); color: var(--mod-text); }
+  .sfc-type.result { background: var(--add-bg); color: var(--add-text); }
+  .sfc-type.archive { background: var(--bg-alt); color: var(--text-muted); }
+  .session-file-card .sfc-meta { font-size: 10px; color: var(--text-dim); font-family: var(--md-mono); }
+  .session-file-card .sfc-note { font-size: 11px; color: var(--mod-text); font-style: italic; }
+  .session-file-card .sfc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+  /* Merge history in project */
+  .merge-history-item {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .merge-history-item .mhi-files { display: flex; align-items: center; gap: 6px; font-family: var(--md-mono); font-size: 12px; flex: 1; flex-wrap: wrap; }
+  .mhi-file { background: var(--bg-alt); border: 1px solid var(--border); padding: 2px 8px; border-radius: 3px; color: var(--text); cursor: pointer; }
+  .mhi-file:hover { border-color: var(--accent); color: var(--accent); }
+  .mhi-arrow { color: var(--text-muted); font-size: 14px; }
+  .mhi-result { background: var(--add-bg); border: 1px solid var(--add-border); padding: 2px 8px; border-radius: 3px; color: var(--add-text); cursor: pointer; }
+  .mhi-result:hover { border-color: var(--add-text); }
+
+  /* Empty state for projects */
+  .projects-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; gap: 14px; color: var(--text-dim); text-align: center; padding: 40px;
+  }
+  .projects-empty .icon { font-size: 48px; opacity: 0.2; }
+
   /* === FEW-SHOT EXAMPLES === */
   .fewshot-section { margin-bottom: 20px; }
   .fewshot-badge { background: var(--accent-soft); color: var(--accent); border-radius: 10px; font-size: 10px; font-family: var(--md-mono); padding: 2px 8px; font-weight: 700; }
@@ -611,9 +805,9 @@
     display: flex; flex: 1; overflow: hidden; min-height: 0;
   }
   .explorer-sidebar {
-    width: 220px; flex-shrink: 0; background: var(--bg-alt);
+    width: 230px; flex-shrink: 0; background: var(--bg-alt);
     border-right: 1px solid var(--border); display: flex; flex-direction: column;
-    overflow: hidden;
+    overflow: hidden; min-height: 0;
   }
   .explorer-sidebar-hdr {
     padding: 12px 14px 8px; flex-shrink: 0;
@@ -623,8 +817,10 @@
     letter-spacing: 0.9px; color: var(--text-muted); font-weight: 700;
   }
   .explorer-file-list {
-    flex: 1; overflow-y: auto; padding: 4px 0;
+    flex: 1; overflow-y: auto; padding: 4px 0; min-height: 0;
   }
+  .explorer-file-list::-webkit-scrollbar { width: 6px; }
+  .explorer-file-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   .explorer-file-list::-webkit-scrollbar { width: 6px; }
   .explorer-file-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   .explorer-file-item {
@@ -771,6 +967,7 @@
   <div class="sidebar-tab" data-panel="history">🕐<span class="tip">Historie</span></div>
   <div class="sidebar-tab" data-panel="aimerge">🤖<span class="tip">AI Merge</span></div>
   <div class="sidebar-tab" data-panel="explorer">📁<span class="tip">Prohlížeč souborů</span></div>
+  <div class="sidebar-tab" data-panel="projects">📂<span class="tip">Projekty</span></div>
   <div class="sidebar-tab" data-panel="storage">💾<span class="tip">Úložiště</span></div>
 </div>
 
@@ -1193,6 +1390,8 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
           <button class="btn sec sm" id="sendToDiff" title="Porovnat: originál vs výsledek">⇆ Porovnat</button>
           <button class="btn sec sm" id="clearMergeResult">✕</button>
         </div>
+
+        <!-- Diff preview -->
         <div id="mergeDiffSection" style="margin-bottom:16px;">
           <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">Originál ↔ Po merge</div>
           <div class="merge-diff-wrap">
@@ -1200,13 +1399,107 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
             <div class="dc" id="mergeNewCol"><div class="dc-hd">PO MERGE</div></div>
           </div>
         </div>
-        <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">Výsledek (editovatelný)</div>
-        <textarea id="mergeResultText" style="width:100%;min-height:220px;resize:vertical;border:1px solid var(--border);border-radius:5px;padding:12px;font-family:var(--md-mono);font-size:12px;line-height:1.6;background:var(--bg-card);color:var(--text);outline:none;" spellcheck="false"></textarea>
+
+        <!-- View switcher -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+          <div class="result-view-tabs">
+            <button class="result-view-tab active" id="resultViewRaw" onclick="switchResultView('raw')">📝 Text</button>
+            <button class="result-view-tab" id="resultViewBlocks" onclick="switchResultView('blocks')">🧩 Bloky</button>
+          </div>
+          <span style="font-size:11px;color:var(--text-dim);" id="resultViewHint">Editovatelný text výsledku</span>
+        </div>
+
+        <!-- RAW textarea -->
+        <div id="resultRawView">
+          <textarea id="mergeResultText" style="width:100%;min-height:220px;resize:vertical;border:1px solid var(--border);border-radius:5px;padding:12px;font-family:var(--md-mono);font-size:12px;line-height:1.6;background:var(--bg-card);color:var(--text);outline:none;" spellcheck="false"></textarea>
+        </div>
+
+        <!-- BLOCK EDITOR -->
+        <div class="block-editor-wrap" id="resultBlockView">
+          <div class="block-editor-toolbar">
+            <label>Rozdělit bloky podle:</label>
+            <div class="result-view-tabs" style="margin-bottom:0;">
+              <button class="result-view-tab active" id="blockModeHeading" onclick="setBlockMode('heading')">Nadpisů H3/H4</button>
+              <button class="result-view-tab" id="blockModeParagraph" onclick="setBlockMode('paragraph')">Odstavců</button>
+            </div>
+            <span style="font-size:11px;color:var(--text-dim);margin-left:4px;">Přetáhni bloky pro přeuspořádání</span>
+            <button class="btn sec sm" id="applyBlockOrder" style="margin-left:auto;">✓ Použít pořadí → Text</button>
+            <button class="btn danger sm" id="resetBlockOrder">↺ Reset</button>
+          </div>
+          <div class="block-list" id="blockList"></div>
+        </div>
       </div>
       </div><!-- /aimerge-body -->
     </div><!-- /panel-aimerge -->
 
 
+
+
+    <!-- PROJECTS PANEL -->
+    <div class="panel" id="panel-projects" style="padding:0;overflow:hidden;">
+      <div class="projects-layout" id="projectsLayout">
+
+        <!-- LEFT NAV: project + session list -->
+        <div class="projects-nav">
+          <div class="projects-nav-hdr">
+            <h3>Projekty</h3>
+            <button class="btn sm" id="newProjectBtn" style="padding:4px 10px;font-size:11px;">+ Nový</button>
+          </div>
+          <div class="projects-list" id="projectsNavList">
+            <div style="padding:20px 14px;font-size:11px;color:var(--text-muted);text-align:center;">
+              Žádné projekty.<br>Klikni + Nový.
+            </div>
+          </div>
+          <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;">
+            <button class="btn sec sm" id="importProjectBtn" style="flex:1;">📥 Import ZIP</button>
+            <input type="file" id="importProjectFile" accept=".zip,.json" style="display:none;">
+          </div>
+        </div>
+
+        <!-- RIGHT MAIN: project/session detail -->
+        <div class="projects-main">
+          <!-- shown when no project selected -->
+          <div class="projects-empty" id="projectsEmpty">
+            <div class="icon">📂</div>
+            <div style="font-size:14px;color:var(--text);font-weight:600;">Správa projektů</div>
+            <div style="font-size:12px;max-width:380px;line-height:1.7;">
+              Organizuj soubory podle projektu a session.<br>
+              Každá session obsahuje <b>aktuální soubory</b>, <b>patche</b> a <b>výsledky merge</b>.<br><br>
+              Klikni <b>+ Nový</b> pro vytvoření prvního projektu.
+            </div>
+          </div>
+
+          <!-- shown when project selected -->
+          <div id="projectDetail" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+            <div class="projects-main-hdr">
+              <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                  <h2 id="projectDetailName">—</h2>
+                  <button class="btn sec sm" id="renameProjectBtn">✏️</button>
+                  <button class="btn danger sm" id="deleteProjectBtn">🗑</button>
+                </div>
+                <div class="pmeta" id="projectDetailMeta"></div>
+              </div>
+              <button class="btn sm" id="newSessionBtn">+ Session</button>
+              <button class="btn sec sm" id="exportProjectBtn">📤 Export ZIP</button>
+            </div>
+
+            <!-- Session detail body -->
+            <div class="projects-main-body" id="projectMainBody">
+              <div id="sessionDetail">
+                <!-- filled dynamically -->
+              </div>
+
+              <!-- Merge history -->
+              <div id="projectMergeHistory" style="margin-top:20px;display:none;">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:10px;">Historie merge</div>
+                <div id="projectMergeHistoryList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- STORAGE PANEL -->
     <div class="panel" id="panel-storage">
@@ -1420,6 +1713,7 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
     if (panel === 'history') updateHistoryPanel();
     if (panel === 'rules') updateRulesPreview();
     if (panel === 'storage') updateStoragePanel();
+    if (panel === 'projects') initProjectsPanel();
     // Hide legend bar when leaving diff
     if (panel !== 'diff') {
       document.getElementById('diffLegendBar').style.display = 'none';
@@ -1840,6 +2134,38 @@ function renderRenderedDiff(pairs, oldColEl, newColEl) {
 
   oldColEl.innerHTML = oldHTML;
   newColEl.innerHTML = newHTML;
+
+  // ── Height alignment: make paired blocks same height so they stay in sync ──
+  // Run after next paint so browser has measured actual heights
+  requestAnimationFrame(() => {
+    alignRenderedBlockHeights(oldColEl, newColEl);
+  });
+}
+
+function alignRenderedBlockHeights(oldColEl, newColEl) {
+  // Find all unique data-row values
+  const rows = new Set();
+  oldColEl.querySelectorAll('[data-row]').forEach(el => rows.add(el.dataset.row));
+  newColEl.querySelectorAll('[data-row]').forEach(el => rows.add(el.dataset.row));
+
+  rows.forEach(row => {
+    const oldEl = oldColEl.querySelector(`[data-row="${row}"]`);
+    const newEl = newColEl.querySelector(`[data-row="${row}"]`);
+    if (!oldEl || !newEl) return;
+
+    // Reset any previous min-height so we measure natural height
+    oldEl.style.minHeight = '';
+    newEl.style.minHeight = '';
+
+    const oldH = oldEl.getBoundingClientRect().height;
+    const newH = newEl.getBoundingClientRect().height;
+    const maxH = Math.max(oldH, newH);
+
+    if (maxH > 0) {
+      oldEl.style.minHeight = maxH + 'px';
+      newEl.style.minHeight = maxH + 'px';
+    }
+  });
 }
 
 // For modified blocks — render the block type but with word highlights on inline text
@@ -2772,17 +3098,30 @@ function explorerUpdateFileList() {
   const list = document.getElementById('explorerFileList');
   document.getElementById('explorerFileCount').textContent = explorerFiles.length;
 
-  list.innerHTML = explorerFiles.map((f, idx) => {
-    if (search && !f.name.toLowerCase().includes(search)) return '';
+  // Filter keeping original indices — critical for correct file selection
+  const visible = explorerFiles
+    .map((f, idx) => ({ f, idx }))
+    .filter(({ f }) => !search || (f.displayName||f.name).toLowerCase().includes(search));
+
+  if (!visible.length) {
+    list.innerHTML = `<div style="padding:12px 14px;font-size:11px;color:var(--text-dim);">
+      Žádný soubor neodpovídá hledání "${esc(search)}".
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = visible.map(({ f, idx }) => {
     const isLeft = explorerActiveLeft === idx;
     const isRight = explorerActiveRight === idx;
     const cls = isLeft && isRight ? 'active-both' : isLeft ? 'active-left' : isRight ? 'active-right' : '';
     const size = f.size < 1024 ? f.size + ' B' : (f.size/1024).toFixed(1) + ' KB';
+    const displayName = f.displayName || f.name;
     const badgeLeft = isLeft ? '<span class="explorer-file-badge left">L</span>' : '';
     const badgeRight = isRight ? '<span class="explorer-file-badge right">R</span>' : '';
-    return `<div class="explorer-file-item ${cls}" data-idx="${idx}" title="${esc(f.name)} — levý klik: levý panel, pravý klik: pravý panel">
+    return `<div class="explorer-file-item ${cls}" data-idx="${idx}"
+      title="${esc(f.path||f.name)}&#10;Levý klik = levý panel · Pravý klik = pravý panel">
       <span class="explorer-file-icon">📄</span>
-      <span class="explorer-file-name">${esc(f.name)}</span>
+      <span class="explorer-file-name">${esc(displayName)}</span>
       <div class="explorer-file-badges">${badgeLeft}${badgeRight}</div>
       <span class="explorer-file-size">${size}</span>
     </div>`;
@@ -2798,20 +3137,29 @@ function explorerUpdateFileList() {
 function explorerLoadFiles(fileList) {
   const promises = Array.from(fileList).map(f => new Promise(resolve => {
     const r = new FileReader();
-    r.onload = ev => resolve({ name: f.name, text: ev.target.result, size: f.size });
+    r.onload = ev => resolve({ name: f.name, text: ev.target.result, size: f.size, path: f.webkitRelativePath || f.name });
     r.readAsText(f);
   }));
   Promise.all(promises).then(loaded => {
-    // Avoid duplicates by name
+    // Use full path as unique key if available, otherwise name + size
     loaded.forEach(newFile => {
-      const existing = explorerFiles.findIndex(f => f.name === newFile.name);
-      if (existing >= 0) explorerFiles[existing] = newFile;
-      else explorerFiles.push(newFile);
+      const key = newFile.path || newFile.name;
+      // If same path exists, update it; same name but different size = different file, keep both
+      const existing = explorerFiles.findIndex(f => (f.path || f.name) === key);
+      if (existing >= 0) {
+        explorerFiles[existing] = newFile;
+      } else {
+        // If name collision but different file, append index to display name
+        const nameCollision = explorerFiles.filter(f => f.name === newFile.name).length;
+        if (nameCollision > 0) {
+          newFile.displayName = newFile.name.replace(/(\.\w+)$/, `_(${nameCollision})$1`);
+        }
+        explorerFiles.push(newFile);
+      }
     });
-    explorerFiles.sort((a, b) => a.name.localeCompare(b.name));
+    explorerFiles.sort((a, b) => (a.displayName||a.name).localeCompare(b.displayName||b.name));
     explorerShowLayout();
     explorerUpdateFileList();
-    // Auto-show first file in left if nothing selected
     if (explorerActiveLeft === null && explorerFiles.length > 0) explorerShowFile('left', 0);
     if (explorerActiveRight === null && explorerFiles.length > 1) explorerShowFile('right', 1);
   });
@@ -3730,12 +4078,22 @@ function histItemHTML(it, idx, allItems, nested) {
   const progress = it.metrics ? Object.entries(it.metrics).filter(([k])=>k!=='lines').map(([k,v]) =>
     `<span style="font-size:10px;color:var(--text-dim);font-family:var(--md-mono);">${esc(k)}: <b style="color:var(--text)">${v.new||0}</b></span>`
   ).join(' · ') : '';
+
+  // input1 + input2 → output format
+  const filesLine = it.mergeInputs
+    ? `<span style="background:var(--del-bg);border:1px solid var(--del-border);padding:1px 6px;border-radius:3px;font-family:var(--md-mono);font-size:11px;">${esc(it.mergeInputs[0]||it.oldName)}</span>
+       <span style="color:var(--text-muted);font-size:12px;"> + </span>
+       <span style="background:rgba(255,208,128,0.1);border:1px solid rgba(255,208,128,0.3);padding:1px 6px;border-radius:3px;font-family:var(--md-mono);font-size:11px;">${esc(it.mergeInputs[1]||'patch')}</span>
+       <span style="color:var(--text-muted);font-size:14px;"> → </span>
+       <span style="background:var(--add-bg);border:1px solid var(--add-border);padding:1px 6px;border-radius:3px;font-family:var(--md-mono);font-size:11px;color:var(--add-text);">${esc(it.newName)}</span>`
+    : `<span style="font-family:var(--md-mono);font-size:11px;">${esc(it.oldName)}<span class="arr" style="margin:0 5px;">→</span>${esc(it.newName)}</span>`;
+
   return `<div class="hist-item" data-idx="${idx}" style="${indent}${!restoreable?'opacity:0.7;':''}" title="${restoreable?'Klikni pro obnovení diffu':'Obsah nebyl uložen'}">
-    <div style="display:flex;align-items:center;gap:10px;width:100%;">
+    <div style="display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;">
       <div class="hist-time">${time}</div>
-      <div class="hist-files" style="flex:1;">
-        ${nested ? '' : `<span style="font-family:var(--md-mono);font-size:11px;">${esc(it.oldName)}<span class="arr">→</span>${esc(it.newName)}</span>`}
-        ${progress ? `<div style="margin-top:2px;">${progress}</div>` : ''}
+      <div class="hist-files" style="flex:1;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+        ${nested ? `<span style="font-family:var(--md-mono);font-size:11px;color:var(--text-dim)">${esc(it.oldName)} → ${esc(it.newName)}</span>` : filesLine}
+        ${progress ? `<div style="width:100%;margin-top:3px;">${progress}</div>` : ''}
       </div>
       <div class="hist-stats" style="gap:8px;">
         <span style="color:var(--add-text)">+${it.stats?.added||0}</span>
@@ -3875,6 +4233,685 @@ document.getElementById('importAllDataFile').addEventListener('change', async e 
   renderTrend();
   updateHistoryPanel();
 });
+
+
+// ================================================================
+// BLOCK EDITOR — drag & drop reordering of merge result
+// ================================================================
+let blockMode = 'heading'; // 'heading' | 'paragraph'
+let blockData = []; // [{raw, type, title, lines}]
+let dragSrcIdx = null;
+
+window.switchResultView = function(view) {
+  const rawView = document.getElementById('resultRawView');
+  const blockView = document.getElementById('resultBlockView');
+  const rawBtn = document.getElementById('resultViewRaw');
+  const blockBtn = document.getElementById('resultViewBlocks');
+  const hint = document.getElementById('resultViewHint');
+
+  if (view === 'raw') {
+    // Sync from blocks to raw if coming back
+    rawView.style.display = '';
+    blockView.classList.remove('active');
+    rawBtn.classList.add('active');
+    blockBtn.classList.remove('active');
+    hint.textContent = 'Editovatelný text výsledku';
+  } else {
+    // Parse raw text into blocks
+    const text = document.getElementById('mergeResultText').value;
+    if (!text.trim()) { alert('Nejdřív proveď merge — žádný text k zobrazení.'); return; }
+    rawView.style.display = 'none';
+    blockView.classList.add('active');
+    rawBtn.classList.remove('active');
+    blockBtn.classList.add('active');
+    hint.textContent = 'Přetáhni bloky pro změnu pořadí';
+    parseAndRenderBlocks(text);
+  }
+};
+
+window.setBlockMode = function(mode) {
+  blockMode = mode;
+  document.getElementById('blockModeHeading').classList.toggle('active', mode === 'heading');
+  document.getElementById('blockModeParagraph').classList.toggle('active', mode === 'paragraph');
+  const text = document.getElementById('mergeResultText').value;
+  parseAndRenderBlocks(text);
+};
+
+function parseIntoBlocks(text, mode) {
+  const lines = text.split('\n');
+  const blocks = [];
+
+  if (mode === 'heading') {
+    // Split on H1-H4 headings
+    let current = null;
+    for (const line of lines) {
+      const hm = line.match(/^(#{1,4})\s+(.+)/);
+      if (hm && hm[1].length <= 4) {
+        if (current) blocks.push(current);
+        current = {
+          type: 'heading',
+          level: hm[1].length,
+          title: hm[2],
+          lines: [line]
+        };
+      } else {
+        if (!current) {
+          current = { type: 'intro', title: '(úvod dokumentu)', lines: [] };
+        }
+        current.lines.push(line);
+      }
+    }
+    if (current) blocks.push(current);
+  } else {
+    // Split on blank lines (paragraph mode)
+    let current = { type: 'paragraph', title: '', lines: [] };
+    for (const line of lines) {
+      if (line.trim() === '' && current.lines.length > 0) {
+        // Finish current block
+        const firstMeaningful = current.lines.find(l => l.trim());
+        current.title = firstMeaningful ? firstMeaningful.trim().slice(0, 60) : '(prázdný blok)';
+        current.type = detectBlockType(current.lines);
+        blocks.push(current);
+        current = { type: 'paragraph', title: '', lines: [] };
+      } else {
+        current.lines.push(line);
+      }
+    }
+    if (current.lines.length) {
+      const firstMeaningful = current.lines.find(l => l.trim());
+      current.title = firstMeaningful ? firstMeaningful.trim().slice(0, 60) : '(prázdný blok)';
+      current.type = detectBlockType(current.lines);
+      blocks.push(current);
+    }
+  }
+
+  return blocks.map(b => ({ ...b, raw: b.lines.join('\n') }));
+}
+
+function detectBlockType(lines) {
+  const first = lines.find(l => l.trim()) || '';
+  if (/^#{1,6}\s/.test(first)) return 'heading';
+  if (/^```/.test(first)) return 'code';
+  if (/^>/.test(first)) return 'blockquote';
+  if (/^\s*[-*+]\s|^\s*\d+\.\s/.test(first)) return 'list';
+  return 'paragraph';
+}
+
+function parseAndRenderBlocks(text) {
+  blockData = parseIntoBlocks(text, blockMode);
+  renderBlockList();
+}
+
+function renderBlockList() {
+  const list = document.getElementById('blockList');
+  list.innerHTML = blockData.map((b, i) => {
+    const typeLabel = {
+      heading: `H${b.level||''}`, code: 'KÓD', blockquote: 'CITACE',
+      list: 'SEZNAM', paragraph: 'TEXT', intro: 'ÚVOD'
+    }[b.type] || b.type.toUpperCase();
+
+    const preview = b.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const titleClass = b.type === 'heading' ? 'block-title is-heading' : 'block-title';
+    const linesCount = b.lines.length;
+
+    return `<div class="block-item" data-idx="${i}" draggable="true">
+      <div class="block-header">
+        <span class="block-drag-handle" title="Přetáhni pro přesunutí">⠿</span>
+        <span class="block-type ${b.type}">${typeLabel}${b.level ? b.level : ''}</span>
+        <span class="${titleClass}" title="${esc(b.title)}">${esc(b.title || b.raw.trim().slice(0, 60))}</span>
+        <span class="block-lines">${linesCount}ř</span>
+        <button class="block-toggle" onclick="toggleBlockPreview(${i})" title="Zobrazit obsah">▸</button>
+      </div>
+      <div class="block-content-preview" id="block-preview-${i}">${preview}</div>
+      <div class="block-actions">
+        <button class="block-action-btn" onclick="moveBlock(${i}, -1)" ${i===0?'disabled':''}>↑</button>
+        <button class="block-action-btn" onclick="moveBlock(${i}, 1)" ${i===blockData.length-1?'disabled':''}>↓</button>
+        <button class="block-action-btn" style="color:var(--del-text);" onclick="deleteBlock(${i})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  setupDragDrop();
+}
+
+window.toggleBlockPreview = function(idx) {
+  const el = document.getElementById('block-preview-' + idx);
+  const btn = el.previousElementSibling.querySelector('.block-toggle');
+  const open = el.classList.toggle('open');
+  btn.textContent = open ? '▾' : '▸';
+};
+
+window.moveBlock = function(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= blockData.length) return;
+  [blockData[idx], blockData[newIdx]] = [blockData[newIdx], blockData[idx]];
+  renderBlockList();
+  // Scroll to moved block
+  setTimeout(() => {
+    const el = document.querySelector(`[data-idx="${newIdx}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 50);
+};
+
+window.deleteBlock = function(idx) {
+  if (!confirm('Smazat tento blok?')) return;
+  blockData.splice(idx, 1);
+  renderBlockList();
+};
+
+function setupDragDrop() {
+  const items = document.querySelectorAll('.block-item');
+  items.forEach(item => {
+    item.addEventListener('dragstart', e => {
+      dragSrcIdx = +item.dataset.idx;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      document.querySelectorAll('.block-item').forEach(i => {
+        i.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+      });
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.block-item').forEach(i => i.classList.remove('drag-over-top','drag-over-bottom'));
+      const rect = item.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) item.classList.add('drag-over-top');
+      else item.classList.add('drag-over-bottom');
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      const targetIdx = +item.dataset.idx;
+      if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+
+      const rect = item.getBoundingClientRect();
+      const insertAfter = e.clientY > rect.top + rect.height / 2;
+
+      const moved = blockData.splice(dragSrcIdx, 1)[0];
+      let insertAt = targetIdx;
+      if (dragSrcIdx < targetIdx) insertAt = targetIdx - 1;
+      if (insertAfter) insertAt += 1;
+      insertAt = Math.max(0, Math.min(insertAt, blockData.length));
+      blockData.splice(insertAt, 0, moved);
+
+      dragSrcIdx = null;
+      renderBlockList();
+    });
+  });
+}
+
+// Apply block order back to raw text
+document.getElementById('applyBlockOrder').addEventListener('click', () => {
+  const separator = blockMode === 'heading' ? '\n' : '\n\n';
+  const result = blockData.map(b => b.raw).join(separator);
+  document.getElementById('mergeResultText').value = result;
+  switchResultView('raw');
+  document.getElementById('resultViewHint').textContent = '✓ Pořadí aplikováno — zkontroluj a stáhni';
+});
+
+document.getElementById('resetBlockOrder').addEventListener('click', () => {
+  const text = document.getElementById('mergeResultText').value;
+  parseAndRenderBlocks(text);
+});
+
+// Auto-switch to block view hint after merge
+const origMergeComplete = () => {};
+
+
+// ================================================================
+// PROJECTS MANAGER
+// ================================================================
+const DB_PROJECTS = 'MDDiffProjects';
+const DB_PROJECTS_VERSION = 1;
+let projectsDB = null;
+let currentProjectId = null;
+let currentSessionId = null;
+
+// ── IndexedDB setup ──
+function openProjectsDB() {
+  return new Promise((resolve, reject) => {
+    if (projectsDB) { resolve(projectsDB); return; }
+    const req = indexedDB.open(DB_PROJECTS, DB_PROJECTS_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('projects')) {
+        d.createObjectStore('projects', { keyPath: 'id', autoIncrement: true });
+      }
+      if (!d.objectStoreNames.contains('sessions')) {
+        const ss = d.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true });
+        ss.createIndex('projectId', 'projectId', { unique: false });
+      }
+      if (!d.objectStoreNames.contains('pfiles')) {
+        const pf = d.createObjectStore('pfiles', { keyPath: 'id', autoIncrement: true });
+        pf.createIndex('sessionId', 'sessionId', { unique: false });
+        pf.createIndex('projectId', 'projectId', { unique: false });
+      }
+    };
+    req.onsuccess = e => { projectsDB = e.target.result; resolve(projectsDB); };
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function pdbAdd(store, item) {
+  const d = await openProjectsDB();
+  return new Promise((res, rej) => {
+    const tx = d.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).add(item);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+async function pdbGet(store, id) {
+  const d = await openProjectsDB();
+  return new Promise((res, rej) => {
+    const req = d.transaction(store,'readonly').objectStore(store).get(id);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+async function pdbGetAll(store) {
+  const d = await openProjectsDB();
+  return new Promise((res, rej) => {
+    const req = d.transaction(store,'readonly').objectStore(store).getAll();
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+async function pdbGetByIndex(store, indexName, value) {
+  const d = await openProjectsDB();
+  return new Promise((res, rej) => {
+    const req = d.transaction(store,'readonly').objectStore(store).index(indexName).getAll(value);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+async function pdbUpdate(store, item) {
+  const d = await openProjectsDB();
+  return new Promise((res, rej) => {
+    const tx = d.transaction(store,'readwrite');
+    const req = tx.objectStore(store).put(item);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+async function pdbDelete(store, id) {
+  const d = await openProjectsDB();
+  return new Promise((res, rej) => {
+    const tx = d.transaction(store,'readwrite');
+    const req = tx.objectStore(store).delete(id);
+    req.onsuccess = () => res();
+    req.onerror = e => rej(e.target.error);
+  });
+}
+
+// ── File type config ──
+const FILE_TYPES = {
+  current: { label: 'Aktuální', icon: '📄', css: 'current' },
+  patch:   { label: 'Patch',    icon: '🔧', css: 'patch'   },
+  result:  { label: 'Výsledek', icon: '✅', css: 'result'  },
+  archive: { label: 'Archiv',   icon: '📦', css: 'archive' },
+};
+
+// ── Render nav list ──
+async function renderProjectsNav() {
+  const projects = await pdbGetAll('projects');
+  const navList = document.getElementById('projectsNavList');
+
+  if (!projects.length) {
+    navList.innerHTML = '<div style="padding:20px 14px;font-size:11px;color:var(--text-muted);text-align:center;">Žádné projekty.<br>Klikni + Nový.</div>';
+    return;
+  }
+
+  projects.sort((a,b) => b.ts - a.ts);
+  let html = '';
+  for (const p of projects) {
+    const sessions = await pdbGetByIndex('sessions', 'projectId', p.id);
+    const isActive = p.id === currentProjectId;
+    html += `<div class="project-item ${isActive?'active':''}" data-pid="${p.id}">
+      <div class="project-item-hdr" onclick="selectProject(${p.id})">
+        <span style="font-size:16px;">📁</span>
+        <span class="pname">${esc(p.name)}</span>
+        <span class="psessions">${sessions.length} sess.</span>
+      </div>`;
+    if (isActive) {
+      sessions.sort((a,b) => b.ts - a.ts);
+      for (const s of sessions) {
+        const files = await pdbGetByIndex('pfiles', 'sessionId', s.id);
+        const isActiveS = s.id === currentSessionId;
+        const dateStr = new Date(s.ts).toLocaleDateString('cs-CZ',{day:'numeric',month:'short'});
+        html += `<div class="session-item ${isActiveS?'active':''}" data-sid="${s.id}" onclick="selectSession(${s.id})">
+          <span style="font-size:13px;">🗂</span>
+          <span class="sname">${esc(s.name)}</span>
+          <span class="scount">${files.length}f</span>
+          <span class="sdate">${dateStr}</span>
+        </div>`;
+      }
+    }
+    html += '</div>';
+  }
+  navList.innerHTML = html;
+}
+
+// ── Select project ──
+window.selectProject = async function(pid) {
+  currentProjectId = pid;
+  currentSessionId = null;
+  await renderProjectsNav();
+  const p = await pdbGet('projects', pid);
+  const sessions = await pdbGetByIndex('sessions', 'projectId', pid);
+  document.getElementById('projectsEmpty').style.display = 'none';
+  document.getElementById('projectDetail').style.display = 'flex';
+  document.getElementById('projectDetailName').textContent = p.name;
+  document.getElementById('projectDetailMeta').textContent =
+    `${sessions.length} session · vytvořen ${new Date(p.ts).toLocaleDateString('cs-CZ')}`;
+  // Show most recent session automatically
+  if (sessions.length > 0) {
+    sessions.sort((a,b) => b.ts - a.ts);
+    await selectSession(sessions[0].id);
+  } else {
+    document.getElementById('sessionDetail').innerHTML =
+      '<div style="color:var(--text-dim);font-size:12px;padding:20px 0;">Žádné session. Klikni + Session.</div>';
+  }
+  await renderProjectMergeHistory(pid);
+};
+
+// ── Select session ──
+window.selectSession = async function(sid) {
+  currentSessionId = sid;
+  await renderProjectsNav();
+  const s = await pdbGet('sessions', sid);
+  const files = await pdbGetByIndex('pfiles', 'sessionId', sid);
+  files.sort((a,b) => { const o = ['current','patch','result','archive']; return o.indexOf(a.fileType)-o.indexOf(b.fileType); });
+
+  const detail = document.getElementById('sessionDetail');
+  detail.innerHTML = `
+    <div class="session-detail-hdr">
+      <h3>🗂 ${esc(s.name)}</h3>
+      <span style="font-size:11px;color:var(--text-dim);">${new Date(s.ts).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric'})}</span>
+      <span style="font-size:11px;color:var(--text-dim);">${files.length} souborů</span>
+      <button class="btn sec sm" id="renameSessionBtn" onclick="renameSession(${sid})">✏️</button>
+      <button class="btn danger sm" onclick="deleteSession(${sid})">🗑</button>
+    </div>
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+      <label class="btn sm" style="cursor:pointer;">
+        📂 Přidat soubory
+        <input type="file" multiple accept=".md,.txt,.markdown" onchange="addFilesToSession(${sid}, this)" style="display:none;">
+      </label>
+      <select id="addFileTypeSelect" style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:11px;cursor:pointer;">
+        <option value="current">📄 Aktuální</option>
+        <option value="patch">🔧 Patch</option>
+        <option value="result">✅ Výsledek</option>
+        <option value="archive">📦 Archiv</option>
+      </select>
+    </div>
+    <div class="session-files-grid" id="sessionFilesGrid"></div>
+  `;
+
+  const grid = document.getElementById('sessionFilesGrid');
+  if (!files.length) {
+    grid.innerHTML = '<div style="color:var(--text-dim);font-size:12px;">Žádné soubory. Přidej je tlačítkem výše.</div>';
+    return;
+  }
+
+  grid.innerHTML = files.map(f => {
+    const ft = FILE_TYPES[f.fileType] || FILE_TYPES.current;
+    const lines = f.content ? f.content.split('\n').length : 0;
+    const size = f.content ? (f.content.length/1024).toFixed(1)+' KB' : '?';
+    return `<div class="session-file-card">
+      <div class="sfc-top">
+        <span class="sfc-icon">${ft.icon}</span>
+        <span class="sfc-name" title="${esc(f.name)}">${esc(f.name)}</span>
+        <span class="sfc-type ${ft.css}">${ft.label}</span>
+      </div>
+      <div class="sfc-meta">${lines} řádků · ${size} · ${new Date(f.ts).toLocaleDateString('cs-CZ',{day:'numeric',month:'short'})}</div>
+      ${f.note ? `<div class="sfc-note">📝 ${esc(f.note)}</div>` : ''}
+      <div class="sfc-actions">
+        <button class="btn sec sm" onclick="openPFileInDiff(${f.id})">→ Diff</button>
+        <button class="btn sec sm" onclick="openPFileInExplorer(${f.id})">👁 Náhled</button>
+        <button class="btn sec sm" onclick="downloadPFile(${f.id})">⬇</button>
+        <button class="btn sec sm" onclick="addPFileNote(${f.id})">📝</button>
+        <button class="btn danger sm" onclick="deletePFile(${f.id})">×</button>
+      </div>
+    </div>`;
+  }).join('');
+};
+
+// ── Add files to session ──
+window.addFilesToSession = async function(sid, input) {
+  const fileType = document.getElementById('addFileTypeSelect')?.value || 'current';
+  const session = await pdbGet('sessions', sid);
+  for (const f of input.files) {
+    const text = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsText(f); });
+    await pdbAdd('pfiles', {
+      sessionId: sid, projectId: session.projectId,
+      name: f.name, content: text, fileType, ts: Date.now(), note: ''
+    });
+  }
+  input.value = '';
+  await selectSession(sid);
+  await renderProjectMergeHistory(session.projectId);
+};
+
+// ── File actions ──
+window.openPFileInDiff = async function(fid) {
+  const f = await pdbGet('pfiles', fid);
+  if (!f) return;
+  if (!newText) { newText = f.content; newFileName = f.name; }
+  else if (!oldText) { oldText = f.content; oldFileName = f.name; }
+  else { newText = f.content; newFileName = f.name; }
+  document.querySelector('.sidebar-tab[data-panel="diff"]').click();
+  if (oldText && newText) runDiff(false);
+};
+
+window.openPFileInExplorer = async function(fid) {
+  const f = await pdbGet('pfiles', fid);
+  if (!f) return;
+  explorerFiles.push({ name: f.name, text: f.content, size: f.content.length });
+  explorerShowLayout();
+  explorerUpdateFileList();
+  explorerShowFile('left', explorerFiles.length - 1);
+  document.querySelector('.sidebar-tab[data-panel="explorer"]').click();
+};
+
+window.downloadPFile = async function(fid) {
+  const f = await pdbGet('pfiles', fid);
+  if (!f) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([f.content],{type:'text/markdown'}));
+  a.download = f.name; a.click();
+};
+
+window.addPFileNote = async function(fid) {
+  const f = await pdbGet('pfiles', fid);
+  if (!f) return;
+  const note = prompt('Poznámka:', f.note || '');
+  if (note === null) return;
+  f.note = note;
+  await pdbUpdate('pfiles', f);
+  await selectSession(f.sessionId);
+};
+
+window.deletePFile = async function(fid) {
+  const f = await pdbGet('pfiles', fid);
+  if (!f || !confirm('Smazat soubor?')) return;
+  await pdbDelete('pfiles', fid);
+  await selectSession(f.sessionId);
+};
+
+// ── Rename/delete session ──
+window.renameSession = async function(sid) {
+  const s = await pdbGet('sessions', sid);
+  const name = prompt('Název session:', s.name);
+  if (!name?.trim()) return;
+  s.name = name.trim();
+  await pdbUpdate('sessions', s);
+  await renderProjectsNav();
+  await selectSession(sid);
+};
+
+window.deleteSession = async function(sid) {
+  const s = await pdbGet('sessions', sid);
+  if (!confirm(`Smazat session "${s?.name}"? Smaže i všechny soubory.`)) return;
+  const files = await pdbGetByIndex('pfiles', 'sessionId', sid);
+  for (const f of files) await pdbDelete('pfiles', f.id);
+  await pdbDelete('sessions', sid);
+  currentSessionId = null;
+  await selectProject(s.projectId);
+};
+
+// ── Merge history in project ──
+async function renderProjectMergeHistory(pid) {
+  const allFiles = await pdbGetByIndex('pfiles', 'projectId', pid);
+  const results = allFiles.filter(f => f.fileType === 'result' && f.mergeFrom);
+  const histEl = document.getElementById('projectMergeHistory');
+  const listEl = document.getElementById('projectMergeHistoryList');
+  if (!results.length) { histEl.style.display = 'none'; return; }
+  histEl.style.display = '';
+  listEl.innerHTML = results.map(r => {
+    const [in1, in2] = r.mergeFrom || [];
+    return `<div class="merge-history-item">
+      <div class="mhi-files">
+        ${in1 ? `<span class="mhi-file" title="Klikni pro diff" onclick="openPFileInDiff(${in1.id||0})">${esc(in1.name||'?')}</span>` : ''}
+        ${in2 ? `<span class="mhi-arrow">+</span><span class="mhi-file patch" onclick="openPFileInDiff(${in2.id||0})">${esc(in2.name||'?')}</span>` : ''}
+        <span class="mhi-arrow">→</span>
+        <span class="mhi-result" onclick="downloadPFile(${r.id})">${esc(r.name)}</span>
+      </div>
+      <span style="font-size:10px;color:var(--text-dim);">${new Date(r.ts).toLocaleDateString('cs-CZ',{day:'numeric',month:'short'})}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── New project ──
+document.getElementById('newProjectBtn').addEventListener('click', async () => {
+  const name = prompt('Název projektu (např. "FinanceFlow"):');
+  if (!name?.trim()) return;
+  const id = await pdbAdd('projects', { name: name.trim(), ts: Date.now() });
+  // Auto-create first session
+  await pdbAdd('sessions', { projectId: id, name: 'Session 1', ts: Date.now() });
+  await renderProjectsNav();
+  await selectProject(id);
+});
+
+// ── New session ──
+document.getElementById('newSessionBtn').addEventListener('click', async () => {
+  if (!currentProjectId) return;
+  const sessions = await pdbGetByIndex('sessions', 'projectId', currentProjectId);
+  const name = prompt('Název session:', `Session ${sessions.length + 1}`);
+  if (!name?.trim()) return;
+  const sid = await pdbAdd('sessions', { projectId: currentProjectId, name: name.trim(), ts: Date.now() });
+  await renderProjectsNav();
+  await selectSession(sid);
+});
+
+// ── Rename project ──
+document.getElementById('renameProjectBtn').addEventListener('click', async () => {
+  if (!currentProjectId) return;
+  const p = await pdbGet('projects', currentProjectId);
+  const name = prompt('Nový název projektu:', p.name);
+  if (!name?.trim()) return;
+  p.name = name.trim();
+  await pdbUpdate('projects', p);
+  document.getElementById('projectDetailName').textContent = p.name;
+  await renderProjectsNav();
+});
+
+// ── Delete project ──
+document.getElementById('deleteProjectBtn').addEventListener('click', async () => {
+  if (!currentProjectId) return;
+  const p = await pdbGet('projects', currentProjectId);
+  if (!confirm(`Smazat projekt "${p?.name}" včetně všech session a souborů?`)) return;
+  const sessions = await pdbGetByIndex('sessions', 'projectId', currentProjectId);
+  for (const s of sessions) {
+    const files = await pdbGetByIndex('pfiles', 'sessionId', s.id);
+    for (const f of files) await pdbDelete('pfiles', f.id);
+    await pdbDelete('sessions', s.id);
+  }
+  await pdbDelete('projects', currentProjectId);
+  currentProjectId = null; currentSessionId = null;
+  document.getElementById('projectsEmpty').style.display = 'flex';
+  document.getElementById('projectDetail').style.display = 'none';
+  await renderProjectsNav();
+});
+
+// ── Export project as ZIP (using JSZip from CDN) ──
+document.getElementById('exportProjectBtn').addEventListener('click', async () => {
+  if (!currentProjectId) return;
+  const p = await pdbGet('projects', currentProjectId);
+  const sessions = await pdbGetByIndex('sessions', 'projectId', currentProjectId);
+
+  // Build export JSON (ZIP requires JSZip, fallback to JSON)
+  const data = { project: p, sessions: [] };
+  for (const s of sessions) {
+    const files = await pdbGetByIndex('pfiles', 'sessionId', s.id);
+    data.sessions.push({ ...s, files });
+  }
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = p.name.replace(/\s+/g,'-').toLowerCase() + '-export-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+});
+
+// ── Import project ──
+document.getElementById('importProjectBtn').addEventListener('click', () => document.getElementById('importProjectFile').click());
+document.getElementById('importProjectFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await new Promise(res => { const r = new FileReader(); r.onload = ev => res(ev.target.result); r.readAsText(f); });
+  try {
+    const data = JSON.parse(text);
+    if (!data.project || !data.sessions) throw new Error('Neplatný formát');
+    const { id: oldId, ...proj } = data.project;
+    proj.ts = Date.now();
+    const newPid = await pdbAdd('projects', proj);
+    for (const s of data.sessions) {
+      const { id: oldSid, files, ...session } = s;
+      session.projectId = newPid;
+      const newSid = await pdbAdd('sessions', session);
+      for (const f2 of (files||[])) {
+        const { id, ...file } = f2;
+        file.sessionId = newSid; file.projectId = newPid;
+        await pdbAdd('pfiles', file);
+      }
+    }
+    await renderProjectsNav();
+    await selectProject(newPid);
+    alert(`✅ Projekt "${proj.name}" importován.`);
+  } catch(err) { alert('Chyba importu: ' + err.message); }
+  e.target.value = '';
+});
+
+// ── Auto-save merge results to current project ──
+// Called after successful merge if a project is active
+async function saveMergeResultToProject(mergedContent, origName, origContent, patchName, patchContent) {
+  if (!currentProjectId || !currentSessionId) return;
+  const resultName = origName.replace(/\.md$/i,'') + '_merged.md';
+  const fid = await pdbAdd('pfiles', {
+    sessionId: currentSessionId, projectId: currentProjectId,
+    name: resultName, content: mergedContent, fileType: 'result',
+    ts: Date.now(), note: '',
+    mergeFrom: [{ name: origName }, { name: patchName }]
+  });
+  await renderProjectMergeHistory(currentProjectId);
+  return fid;
+}
+window.saveMergeResultToProject = saveMergeResultToProject;
+
+// ── Initialize ──
+async function initProjectsPanel() {
+  await renderProjectsNav();
+  const projects = await pdbGetAll('projects');
+  if (projects.length > 0) {
+    projects.sort((a,b) => b.ts - a.ts);
+    await selectProject(projects[0].id);
+  }
+}
 
 </script>
 </body>
