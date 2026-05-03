@@ -1686,17 +1686,23 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
                 <div class="pmeta" id="projectDetailMeta"></div>
               </div>
               <button class="btn sm" id="newSessionBtn">+ Session</button>
-              <button class="btn sec sm" id="showMasterFilesBtn" onclick="showCurrentFilesManager()" title="Nastavit aktuální master soubory projektu">⭐ Aktuální soubory</button>
+              <button id="showMasterFilesBtn" onclick="showCurrentFilesManager()"
+                style="padding:6px 12px;background:rgba(245,166,35,0.15);border:1.5px solid #f5a623;color:#f5a623;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.2px;"
+                title="Nastavit aktuální master soubory projektu">⭐ Aktuální soubory</button>
               <button class="btn sec sm" id="exportProjectBtn">📤 Export ZIP</button>
             </div>
 
             <!-- Current files strip -->
-            <div id="currentFilesStrip" style="background:var(--bg-alt);border-bottom:1px solid var(--border);padding:10px 20px;flex-shrink:0;">
+            <div id="currentFilesStrip" style="background:linear-gradient(135deg,rgba(79,142,247,0.08),rgba(79,142,247,0.04));border-bottom:2px solid rgba(79,142,247,0.3);padding:10px 20px;flex-shrink:0;">
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800;color:var(--accent);flex-shrink:0;">⭐ Master:</span>
-                <div id="currentFilesChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-height:22px;">
-                  <span id="currentFilesEmpty" style="font-size:11px;color:var(--text-muted);align-self:center;">Žádné master soubory — klikni ⭐ Aktuální soubory v hlavičce pro nastavení</span>
+                <span style="font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:800;color:var(--accent);flex-shrink:0;">⭐ Master soubory:</span>
+                <div id="currentFilesChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-height:24px;align-items:center;">
+                  <span id="currentFilesEmpty" style="font-size:12px;color:var(--text-dim);align-self:center;">Žádné — klikni tlačítko →</span>
                 </div>
+                <button onclick="showCurrentFilesManager()"
+                  style="flex-shrink:0;padding:6px 14px;background:var(--accent);color:white;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(79,142,247,0.4);">
+                  ⭐ Nastavit master soubory
+                </button>
               </div>
             </div>
 
@@ -5686,7 +5692,7 @@ async function buildCurrentFilesPanel(projectId) {
   chips.innerHTML = '';
 
   if (!Object.keys(projectCF).length) {
-    chips.innerHTML = '<span style="font-size:11px;color:var(--text-muted);">Žádné master soubory — klikni <b style="color:var(--accent);">⭐ Aktuální soubory</b> nahoře vpravo pro nastavení.</span>';
+    chips.innerHTML = '<span style="font-size:12px;color:var(--text-dim);">Žádné — klikni tlačítko →</span>';
     return;
   }
 
