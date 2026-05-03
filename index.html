@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>MD Diff v4.3</title>
+<title>MD Diff v4.4</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   :root {
@@ -689,7 +689,7 @@
     padding: 12px 14px; flex-shrink: 0; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 8px;
   }
-  .projects-nav-hdr h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 700; flex: 1; }
+  .projects-nav-hdr h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #f5a623; font-weight: 800; flex: 1; }
   .projects-list { flex: 1; overflow-y: auto; padding: 4px 0; }
   .projects-list::-webkit-scrollbar { width: 5px; }
   .projects-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -874,7 +874,7 @@
   .btn.sec { border-width: 1.5px; }
 
   /* Storage tabs */
-  .storage-tab-btn { font-size: 12px; font-weight: 600; }
+  .storage-tab-btn { font-size: 12px; font-weight: 600; letter-spacing: 0.2px; }
   .storage-tab-btn.active { color: var(--accent); }
 
   /* Merge mode tabs */
@@ -910,6 +910,25 @@
   .picker-item .pi-name { font-size: 13px; font-weight: 600; }
   .picker-item .pi-meta { font-size: 11px; color: var(--text-dim); }
   .picker-section-hdr { font-size: 11px; font-weight: 800; letter-spacing: 0.6px; color: #6868a0; }
+
+  /* Highlighted sidebar tabs */
+  .proj-tab { color: #f5a623 !important; }
+  .proj-tab.active { background: rgba(245,166,35,0.15) !important; border-left-color: #f5a623 !important; }
+  .stor-tab { color: #50c878 !important; }
+  .stor-tab.active { background: rgba(80,200,120,0.12) !important; border-left-color: #50c878 !important; }
+
+  /* Progress file tabs */
+  .prog-file-tab {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 4px; font-size: 11px;
+    font-family: var(--md-mono); font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-dim); transition: all 0.12s; white-space: nowrap;
+  }
+  .prog-file-tab:hover { border-color: var(--accent); color: var(--text); }
+  .prog-file-tab.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .prog-file-tab .pft-remove { color: var(--text-muted); margin-left: 2px; font-size: 10px; }
+  .prog-file-tab .pft-remove:hover { color: var(--del-text); }
 
   /* === FEW-SHOT EXAMPLES === */
   .fewshot-section { margin-bottom: 20px; }
@@ -950,7 +969,7 @@
   .explorer-sidebar-hdr {
     padding: 12px 14px 8px; flex-shrink: 0;
   }
-  .explorer-sidebar-hdr h3 {
+  .explorer-sidebar-hdr h3 { color: #50c878 !important; font-size: 12px !important; font-weight: 800 !important; letter-spacing: 1px !important;
     margin: 0 0 10px 0; font-size: 10px; text-transform: uppercase;
     letter-spacing: 0.9px; color: var(--text-muted); font-weight: 700;
   }
@@ -1105,8 +1124,8 @@
   <div class="sidebar-tab" data-panel="history">🕐<span class="tip">Historie</span></div>
   <div class="sidebar-tab" data-panel="aimerge">🤖<span class="tip">AI Merge</span></div>
   <div class="sidebar-tab" data-panel="explorer">📁<span class="tip">Prohlížeč souborů</span></div>
-  <div class="sidebar-tab" data-panel="projects">📂<span class="tip">Projekty</span></div>
-  <div class="sidebar-tab" data-panel="storage">💾<span class="tip">Úložiště</span></div>
+  <div class="sidebar-tab proj-tab" data-panel="projects">📂<span class="tip">Projekty</span></div>
+  <div class="sidebar-tab stor-tab" data-panel="storage">💾<span class="tip">Úložiště</span></div>
 </div>
 
 <!-- MAIN -->
@@ -1114,7 +1133,7 @@
 
   <!-- TOPBAR -->
   <div class="topbar" id="topbar">
-    <h1><span class="dot"></span>MD Diff <span style="color:var(--accent);font-size:11px;font-weight:600;letter-spacing:0.3px;">v4.2</span></h1>
+    <h1><span class="dot"></span>MD Diff <span style="color:var(--accent);font-size:11px;font-weight:600;letter-spacing:0.3px;">v4.4</span></h1>
     <span class="sep">│</span>
     <div class="file-input-group old-group">
       <span class="file-group-label old-label">STARÉ</span>
@@ -1281,54 +1300,72 @@
       <!-- METRICS TAB -->
       <div id="progress-tab-metrics" class="storage-section active">
 
-        <!-- File source selector -->
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:14px;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;margin-bottom:10px;">Zdroj dat pro analýzu</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
-            <div>
-              <div style="font-size:11px;color:var(--text-dim);margin-bottom:5px;">STARÉ / PŘED <span id="progOldName" style="color:var(--del-text);font-family:var(--md-mono);font-size:10px;">—</span></div>
-              <div style="display:flex;gap:6px;">
-                <input type="file" id="progOldFile" accept=".md,.txt" style="flex:1;font-size:11px;color:var(--text-dim);">
-                <button class="btn sec sm" id="progUseOldDiff" title="Použít OLD z aktuálního diffu">← Diff</button>
+        <!-- File tabs by filename -->
+        <div id="progFileTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;white-space:nowrap;">Soubory:</span>
+          <div id="progFileTabsList" style="display:flex;gap:4px;flex-wrap:wrap;flex:1;"></div>
+          <label class="btn sm" style="cursor:pointer;font-size:11px;">
+            + Přidat soubor
+            <input type="file" id="progAddFileInput" accept=".md,.txt" multiple style="display:none;">
+          </label>
+          <button class="btn sec sm" id="progUseOldDiff" title="Přidat OLD z diffu">+ Diff OLD</button>
+          <button class="btn sec sm" id="progUseNewDiff" title="Přidat NEW z diffu">+ Diff NEW</button>
+          <button class="btn danger sm" id="progClearAll" title="Vymazat vše">✕</button>
+        </div>
+
+        <!-- Active file display -->
+        <div id="progActiveFilePanel" style="display:none;">
+          <!-- File name + auto rules suggestion -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <span id="progActiveFileName" style="font-family:var(--md-mono);font-size:13px;font-weight:700;color:var(--text);"></span>
+            <span id="progActiveFileMeta" style="font-size:11px;color:var(--text-dim);"></span>
+            <span id="progAutoRulesInfo" style="font-size:11px;"></span>
+          </div>
+
+          <!-- Single file metrics (when only one loaded) -->
+          <div id="progSingleMetrics" style="display:none;">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;margin-bottom:8px;">Metriky souboru</div>
+            <div class="metrics-grid" id="metricsGridSingle"></div>
+          </div>
+
+          <!-- Compare two files (when two selected) -->
+          <div id="progCompareMetrics" style="display:none;">
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;">Porovnání:</div>
+              <select id="progCompareLeft" style="background:var(--bg-card);border:1px solid var(--del-border);border-radius:4px;padding:4px 8px;color:var(--del-text);font-size:11px;font-family:var(--md-mono);outline:none;"></select>
+              <span style="color:var(--text-dim);">→</span>
+              <select id="progCompareRight" style="background:var(--bg-card);border:1px solid var(--add-border);border-radius:4px;padding:4px 8px;color:var(--add-text);font-size:11px;font-family:var(--md-mono);outline:none;"></select>
+            </div>
+            <div class="metrics-grid" id="metricsGrid"></div>
+          </div>
+
+          <!-- Actions -->
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <button class="btn sm" id="saveProgressSnapshot">📸 Uložit snapshot</button>
+            <button class="btn sec sm" id="exportProgressReport">📄 Export reportu</button>
+            <span style="font-size:11px;color:var(--text-dim);" id="progressSnapshotInfo"></span>
+          </div>
+
+          <!-- Matched lines detail -->
+          <div id="progressMatchDetail" style="display:none;margin-top:16px;">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;margin-bottom:10px;" id="progressMatchTitle">Nalezené řádky</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">STARÉ</div>
+                <div id="progressMatchOld" style="background:var(--bg-card);border:1px solid var(--del-border);border-radius:5px;padding:10px;font-family:var(--md-mono);font-size:11.5px;line-height:1.7;max-height:280px;overflow-y:auto;color:var(--text);"></div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">NOVÉ</div>
+                <div id="progressMatchNew" style="background:var(--bg-card);border:1px solid var(--add-border);border-radius:5px;padding:10px;font-family:var(--md-mono);font-size:11.5px;line-height:1.7;max-height:280px;overflow-y:auto;color:var(--text);"></div>
               </div>
             </div>
-            <div>
-              <div style="font-size:11px;color:var(--text-dim);margin-bottom:5px;">NOVÉ / PO <span id="progNewName" style="color:var(--add-text);font-family:var(--md-mono);font-size:10px;">—</span></div>
-              <div style="display:flex;gap:6px;">
-                <input type="file" id="progNewFile" accept=".md,.txt" style="flex:1;font-size:11px;color:var(--text-dim);">
-                <button class="btn sec sm" id="progUseNewDiff" title="Použít NEW z aktuálního diffu">← Diff</button>
-              </div>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <button class="btn sm" id="progAnalyzeBtn">🔍 Analyzovat</button>
-            <span style="font-size:11px;color:var(--text-dim);" id="progAutoRulesInfo"></span>
           </div>
         </div>
 
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
-          <button class="btn sm" id="saveProgressSnapshot">📸 Uložit snapshot</button>
-          <button class="btn sec sm" id="exportProgressReport">📄 Export reportu</button>
-          <span style="font-size:11px;color:var(--text-dim);align-self:center;" id="progressSnapshotInfo"></span>
-        </div>
-
-        <div class="metrics-grid" id="metricsGrid">
-          <div class="metric-card"><div class="mlbl">Řádků</div><div class="mval" id="m-lines">—</div><div class="mdelta" id="m-lines-delta"></div></div>
-        </div>
-
-        <!-- Matched lines detail -->
-        <div id="progressMatchDetail" style="display:none;margin-top:16px;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;margin-bottom:10px;" id="progressMatchTitle">Nalezené řádky</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div>
-              <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">STARÉ</div>
-              <div id="progressMatchOld" style="background:var(--bg-card);border:1px solid var(--del-border);border-radius:5px;padding:10px;font-family:var(--md-mono);font-size:11.5px;line-height:1.7;max-height:320px;overflow-y:auto;color:var(--text);"></div>
-            </div>
-            <div>
-              <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">NOVÉ</div>
-              <div id="progressMatchNew" style="background:var(--bg-card);border:1px solid var(--add-border);border-radius:5px;padding:10px;font-family:var(--md-mono);font-size:11.5px;line-height:1.7;max-height:320px;overflow-y:auto;color:var(--text);"></div>
-            </div>
-          </div>
+        <!-- Empty state -->
+        <div id="progEmptyState" style="text-align:center;padding:40px;color:var(--text-dim);font-size:12px;">
+          Přidej soubory tlačítkem <b>+ Přidat soubor</b> nebo <b>+ Diff OLD/NEW</b>.<br>
+          Každý soubor dostane vlastní záložku. Kliknutím na dvě záložky je porovnáš.
         </div>
       </div>
 
@@ -1353,7 +1390,7 @@
           <button class="view-toggle-btn" id="tvVelocity" onclick="switchTrendView('velocity')">⚡ Velocity</button>
           <button class="view-toggle-btn" id="tvBurndown" onclick="switchTrendView('burndown')">🔥 Burndown</button>
           <button class="view-toggle-btn" id="tvCompletion" onclick="switchTrendView('completion')">✅ Completion</button>
-          <button class="view-toggle-btn" id="tvWordcloud" onclick="switchTrendView('wordcloud')">☁️ Word cloud</button>
+          <button class="view-toggle-btn" id="tvChanges" onclick="switchTrendView('changes')">📋 Průběh změn</button>
         </div>
 
         <div id="trendChart" style="margin-bottom:20px;"></div>
@@ -1610,8 +1647,8 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
         <!-- LEFT NAV: project + session list -->
         <div class="projects-nav">
           <div class="projects-nav-hdr">
-            <h3>Projekty</h3>
-            <button class="btn sm" id="newProjectBtn" style="padding:4px 10px;font-size:11px;">+ Nový</button>
+            <h3>📁 Projekty</h3>
+            <button class="btn sm" id="newProjectBtn" style="padding:4px 10px;font-size:11px;background:linear-gradient(135deg,#f5a623,#e8940d);box-shadow:0 2px 6px rgba(245,166,35,0.3);">+ Nový</button>
           </div>
           <div class="projects-list" id="projectsNavList">
             <div style="padding:20px 14px;font-size:11px;color:var(--text-muted);text-align:center;">
@@ -1649,15 +1686,17 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
                 <div class="pmeta" id="projectDetailMeta"></div>
               </div>
               <button class="btn sm" id="newSessionBtn">+ Session</button>
+              <button class="btn sec sm" id="showMasterFilesBtn" onclick="showCurrentFilesManager()" title="Nastavit aktuální master soubory projektu">⭐ Aktuální soubory</button>
               <button class="btn sec sm" id="exportProjectBtn">📤 Export ZIP</button>
             </div>
 
             <!-- Current files strip -->
-            <div id="currentFilesStrip" style="display:none;background:var(--bg-alt);border-bottom:1px solid var(--border);padding:10px 20px;flex-shrink:0;">
+            <div id="currentFilesStrip" style="background:var(--bg-alt);border-bottom:1px solid var(--border);padding:10px 20px;flex-shrink:0;">
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800;color:var(--accent);flex-shrink:0;">⭐ Aktuální master soubory:</span>
-                <div id="currentFilesChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;"></div>
-                <button class="btn sec sm" onclick="showCurrentFilesManager()" style="flex-shrink:0;">Spravovat</button>
+                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800;color:var(--accent);flex-shrink:0;">⭐ Master:</span>
+                <div id="currentFilesChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-height:22px;">
+                  <span id="currentFilesEmpty" style="font-size:11px;color:var(--text-muted);align-self:center;">Žádné master soubory — klikni ⭐ Aktuální soubory v hlavičce pro nastavení</span>
+                </div>
               </div>
             </div>
 
@@ -1737,7 +1776,7 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
     <!-- file list sidebar -->
     <div class="explorer-sidebar">
       <div class="explorer-sidebar-hdr">
-        <h3>Soubory (<span id="explorerFileCount">0</span>)</h3>
+        <h3 style="color:#50c878;font-size:12px;font-weight:800;letter-spacing:1px;margin:0;">📄 Soubory (<span id="explorerFileCount">0</span>)</h3>
         <input type="search" class="explorer-search" id="explorerSearch" placeholder="Hledat soubor…">
       </div>
       <div class="explorer-file-list" id="explorerFileList"></div>
@@ -4140,6 +4179,33 @@ function renderTrendChart() {
         makeSVG(data, '#a78bfa', 'Completion rate % v čase', '%', W, H, pad);
     }
 
+  } else if (currentTrendView === 'changes') {
+    // Průběh změn — show all snapshots metrics side by side
+    if (!displayed.length) { chart.innerHTML = '<div style="padding:20px;color:var(--text-dim);">Žádné snapshoty.</div>'; }
+    else {
+      const allKeys = [...new Set(displayed.flatMap(s => Object.keys(s.metrics||{}).filter(k=>k!=='lines')))];
+      let html = `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;margin-bottom:12px;">Průběh metrik napříč snapshoty</div>`;
+      allKeys.forEach(key => {
+        const rule = progressRules.find(r => r.name === key);
+        const color = rule?.color || '#888';
+        const vals = displayed.map(s => s.metrics?.[key]?.new || 0);
+        html += `<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;">${esc(key)}</div>`;
+        html += `<div style="display:flex;gap:6px;align-items:flex-end;height:50px;">`;
+        const maxV = Math.max(...vals, 1);
+        vals.forEach((v, i) => {
+          const h = Math.max(4, Math.round((v / maxV) * 46));
+          const s = displayed[i];
+          const lbl = s.session.length > 8 ? s.session.slice(0,7)+'…' : s.session;
+          html += `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;" title="${esc(s.session)}: ${v}">
+            <span style="font-size:9px;color:${color};font-weight:700;">${v}</span>
+            <div style="width:100%;background:${color};border-radius:2px 2px 0 0;height:${h}px;opacity:0.8;"></div>
+            <span style="font-size:8px;color:var(--text-muted);text-align:center;width:100%;overflow:hidden;text-overflow:ellipsis;">${lbl}</span>
+          </div>`;
+        });
+        html += '</div></div>';
+      });
+      chart.innerHTML = html || '<div style="padding:20px;color:var(--text-dim);">Žádné metriky v snapshotu.</div>';
+    }
   } else if (currentTrendView === 'wordcloud') {
     // Word cloud from current NEW file
     if (!lastDiffResult?.newLines) {
@@ -5312,122 +5378,247 @@ function detectFileType(filename) {
   return null;
 }
 
-// Progress-specific file state
-let progOldLines = null, progNewLines = null;
-let progOldFileName = '', progNewFileName = '';
+// ================================================================
+// PROGRESS METRICS — Multi-file tab system
+// ================================================================
+// progFiles: [{name, lines, text}]
+let progFiles = [];
+let progActiveIdx = 0;  // currently viewed file
+let progCompareIdxA = 0, progCompareIdxB = 1; // for comparison
 
-function loadProgressFile(side, text, name) {
+// Keep backward compat for snapshot code
+Object.defineProperty(window, 'progOldLines', { get: () => progFiles[0]?.lines || null });
+Object.defineProperty(window, 'progNewLines', { get: () => progFiles[1]?.lines || null });
+Object.defineProperty(window, 'progOldFileName', { get: () => progFiles[0]?.name || '' });
+Object.defineProperty(window, 'progNewFileName', { get: () => progFiles[1]?.name || '' });
+
+function addProgFile(text, name) {
   const lines = text.split('\n');
-  if (side === 'old') {
-    progOldLines = lines; progOldFileName = name;
-    document.getElementById('progOldName').textContent = name;
-  } else {
-    progNewLines = lines; progNewFileName = name;
-    document.getElementById('progNewName').textContent = name;
+  // Check if same name already loaded — update it
+  const existing = progFiles.findIndex(f => f.name === name);
+  if (existing >= 0) {
+    progFiles[existing] = { name, lines, text };
+    renderProgFileTabs();
+    selectProgFile(existing);
+    return;
   }
-  // Auto-detect file type and suggest rules
-  const detectedOld = detectFileType(progOldFileName);
-  const detectedNew = detectFileType(progNewFileName);
-  const detected = detectedOld || detectedNew;
-  const infoEl = document.getElementById('progAutoRulesInfo');
-  if (detected && FILE_RULES_PRESETS[detected]) {
-    infoEl.innerHTML = `Rozpoznán typ <b style="color:var(--accent)">${detected}.md</b> — <a href="#" onclick="applyFilePreset('${detected}');return false;" style="color:var(--accent);">použít doporučená pravidla</a>`;
-  } else {
-    infoEl.textContent = 'Typ souboru nerozpoznán — použijí se aktuální pravidla.';
+  progFiles.push({ name, lines, text });
+  renderProgFileTabs();
+  selectProgFile(progFiles.length - 1);
+}
+
+function renderProgFileTabs() {
+  const tabsEl = document.getElementById('progFileTabsList');
+  if (!tabsEl) return;
+  const empty = document.getElementById('progEmptyState');
+  const panel = document.getElementById('progActiveFilePanel');
+
+  if (!progFiles.length) {
+    if (empty) empty.style.display = '';
+    if (panel) panel.style.display = 'none';
+    tabsEl.innerHTML = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (panel) panel.style.display = '';
+
+  tabsEl.innerHTML = progFiles.map((f, i) => {
+    const detected = detectFileType(f.name);
+    const icon = detected ? (FILE_RULES_PRESETS[detected] ? '📄' : '📄') : '📄';
+    return `<span class="prog-file-tab ${i === progActiveIdx ? 'active' : ''}" onclick="selectProgFile(${i})">
+      ${icon} ${esc(f.name.replace(/\.md$/i,''))}
+      <span class="pft-remove" onclick="event.stopPropagation();removeProgFile(${i})" title="Odebrat">×</span>
+    </span>`;
+  }).join('');
+
+  // Update compare selects
+  const selA = document.getElementById('progCompareLeft');
+  const selB = document.getElementById('progCompareRight');
+  if (selA && selB) {
+    const opts = progFiles.map((f,i) => `<option value="${i}">${esc(f.name)}</option>`).join('');
+    selA.innerHTML = opts;
+    selB.innerHTML = opts;
+    selA.value = Math.min(progCompareIdxA, progFiles.length - 1);
+    selB.value = Math.min(Math.max(progCompareIdxB, 1), progFiles.length - 1);
   }
 }
 
-window.applyFilePreset = function(type) {
-  const preset = FILE_RULES_PRESETS[type];
-  if (!preset) return;
-  if (!confirm('Nahradit aktuální pravidla Progresu pravidly pro "' + type + '.md"?')) return;
-  progressRules = JSON.parse(JSON.stringify(preset));
-  saveProgRules();
-  renderRulesEditor();
-  updateProgressMetrics();
-  document.getElementById('progAutoRulesInfo').innerHTML = '✅ Pravidla pro <b>' + type + '.md</b> aplikována.';
+window.selectProgFile = function(idx) {
+  progActiveIdx = idx;
+  renderProgFileTabs();
+  const f = progFiles[idx];
+  if (!f) return;
+
+  // Update header
+  const nameEl = document.getElementById('progActiveFileName');
+  const metaEl = document.getElementById('progActiveFileMeta');
+  if (nameEl) nameEl.textContent = f.name;
+  if (metaEl) metaEl.textContent = f.lines.length + ' řádků';
+
+  // Auto-detect and suggest rules
+  const detected = detectFileType(f.name);
+  const infoEl = document.getElementById('progAutoRulesInfo');
+  if (infoEl && detected && FILE_RULES_PRESETS[detected]) {
+    infoEl.innerHTML = `Rozpoznán: <b style="color:var(--accent)">${detected}</b> — <a href="#" onclick="applyFilePreset('${detected}');return false;" style="color:var(--accent);">použít pravidla</a>`;
+  } else if (infoEl) { infoEl.textContent = ''; }
+
+  // Show single vs compare panel
+  const single = document.getElementById('progSingleMetrics');
+  const compare = document.getElementById('progCompareMetrics');
+  if (progFiles.length >= 2) {
+    if (single) single.style.display = 'none';
+    if (compare) compare.style.display = '';
+    progCompareIdxA = Math.max(0, progFiles.length - 2);
+    progCompareIdxB = progFiles.length - 1;
+    const selA = document.getElementById('progCompareLeft');
+    const selB = document.getElementById('progCompareRight');
+    if (selA) selA.value = progCompareIdxA;
+    if (selB) selB.value = progCompareIdxB;
+    updateProgressMetrics();
+  } else {
+    if (single) single.style.display = '';
+    if (compare) compare.style.display = 'none';
+    renderSingleFileMetrics(f);
+  }
 };
 
-// File input handlers
-document.getElementById('progOldFile').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = ev => loadProgressFile('old', ev.target.result, f.name);
-  r.readAsText(f); e.target.value = '';
-});
-document.getElementById('progNewFile').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = ev => loadProgressFile('new', ev.target.result, f.name);
-  r.readAsText(f); e.target.value = '';
-});
-
-// Use from current diff
-document.getElementById('progUseOldDiff').addEventListener('click', () => {
-  // Use lastDiffResult if available, otherwise use raw oldText
-  if (lastDiffResult?.oldLines?.length) {
-    loadProgressFile('old', lastDiffResult.oldLines.join('\n'), oldFileName || 'diff-old');
-  } else if (oldText) {
-    loadProgressFile('old', oldText, oldFileName || 'diff-old');
-  } else {
-    alert('Nejdřív nahraj soubory v záložce ⇆ (STARÉ pole).');
-  }
-});
-document.getElementById('progUseNewDiff').addEventListener('click', () => {
-  if (lastDiffResult?.newLines?.length) {
-    loadProgressFile('new', lastDiffResult.newLines.join('\n'), newFileName || 'diff-new');
-  } else if (newText) {
-    loadProgressFile('new', newText, newFileName || 'diff-new');
-  } else {
-    alert('Nejdřív nahraj soubory v záložce ⇆ (NOVÉ pole).');
-  }
-});
-
-// Analyze button
-document.getElementById('progAnalyzeBtn').addEventListener('click', () => {
-  if (!progOldLines && !progNewLines) { alert('Nahraj alespoň jeden soubor.'); return; }
-  updateProgressMetrics();
-});
-
-// Override updateProgressMetrics to use progOldLines/progNewLines if set
-const _origUpdateProgressMetrics = updateProgressMetrics;
-function updateProgressMetrics() {
-  const grid = document.getElementById('metricsGrid');
-  // Use progress-specific files if available, otherwise fall back to diff
-  const ol = progOldLines || lastDiffResult?.oldLines || [];
-  const nl = progNewLines || lastDiffResult?.newLines || [];
-
-  if (!ol.length && !nl.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-dim);padding:30px;font-size:12px;">Nahraj soubory výše nebo proveď diff v záložce ⇆.</div>';
-    return;
-  }
-
-  let html = `<div class="metric-card">
-    <div class="mlbl">Řádků
-      ${progOldFileName ? '<span style="font-family:var(--md-mono);font-size:9px;opacity:0.7;display:block;">' + esc(progOldFileName) + ' → ' + esc(progNewFileName||'?') + '</span>' : ''}
-    </div>
-    <div class="mval">${nl.length || ol.length}</div>
-    <div class="mdelta">${fmtDelta((nl.length||0)-(ol.length||0))} vs STARÉ</div>
-  </div>`;
-
+function renderSingleFileMetrics(f) {
+  const grid = document.getElementById('metricsGridSingle');
+  if (!grid) return;
+  let html = `<div class="metric-card"><div class="mlbl">Řádků</div><div class="mval">${f.lines.length}</div></div>`;
   for (const r of progressRules) {
     if (!r.regex) continue;
-    const oc = countM(ol, r.regex), nc = countM(nl.length ? nl : ol, r.regex);
+    const n = countM(f.lines, r.regex);
     const sr = r.regex.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    html += `<div class="metric-card" style="cursor:pointer;" onclick="showProgressMatch('${r.name}','${sr}','${r.color}')" title="Klikni → zobrazit řádky">
-      <div class="mlbl"><span style="display:inline-block;width:10px;height:10px;background:${r.color};border-radius:2px;margin-right:4px;"></span>${esc(r.name)} <span style="opacity:0.5;font-size:9px;">▾</span></div>
-      <div class="mval" style="color:${r.color}">${nl.length ? nc : oc}</div>
-      <div class="mdelta">${nl.length ? fmtDelta(nc-oc) + ' vs STARÉ' : ''}</div>
+    html += `<div class="metric-card" style="cursor:pointer;" onclick="showProgressMatchSingle(${JSON.stringify(r.name)}, '${sr}', '${r.color}')" title="Klikni → zobrazit řádky">
+      <div class="mlbl"><span style="display:inline-block;width:10px;height:10px;background:${r.color};border-radius:2px;margin-right:4px;"></span>${esc(r.name)}</div>
+      <div class="mval" style="color:${r.color}">${n}</div>
     </div>`;
   }
   grid.innerHTML = html;
 }
 
-// Override showProgressMatch to use prog files
-const _origShowProgressMatch = window.showProgressMatch;
+window.showProgressMatchSingle = function(ruleName, regex, color) {
+  const f = progFiles[progActiveIdx];
+  if (!f) return;
+  const det = document.getElementById('progressMatchDetail');
+  const oldEl = document.getElementById('progressMatchOld');
+  const newEl = document.getElementById('progressMatchNew');
+  det.style.display = 'block';
+  document.getElementById('progressMatchTitle').textContent = 'Řádky — ' + ruleName;
+  document.querySelector('#progressMatchOld').previousElementSibling.textContent = f.name;
+  document.querySelector('#progressMatchNew').previousElementSibling.textContent = '(porovnání N/A)';
+  let re; try { re = new RegExp(regex, 'i'); } catch(e) { return; }
+  const fmt = (lines) => {
+    const matched = lines.map((l,i) => ({l,i})).filter(({l}) => re.test(l));
+    if (!matched.length) return '<span style="color:var(--text-muted);font-style:italic;">žádné shody</span>';
+    return matched.map(({l,i}) => `<div style="padding:2px 0;border-bottom:1px solid var(--border-soft);"><span style="color:var(--text-muted);margin-right:8px;font-size:10px;">${i+1}</span><span style="color:${color}">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></div>`).join('');
+  };
+  oldEl.innerHTML = fmt(f.lines);
+  newEl.innerHTML = '<span style="color:var(--text-muted);font-size:11px;">Přidej druhý soubor pro porovnání.</span>';
+  det.scrollIntoView({behavior:'smooth', block:'nearest'});
+};
+
+window.removeProgFile = function(idx) {
+  progFiles.splice(idx, 1);
+  if (progActiveIdx >= progFiles.length) progActiveIdx = Math.max(0, progFiles.length - 1);
+  renderProgFileTabs();
+  if (progFiles.length) selectProgFile(progActiveIdx);
+};
+
+window.applyFilePreset = function(type) {
+  const preset = FILE_RULES_PRESETS[type];
+  if (!preset) return;
+  if (!confirm('Nahradit pravidla Progresu pravidly pro "' + type + '.md"?')) return;
+  progressRules = JSON.parse(JSON.stringify(preset));
+  saveProgRules(); renderRulesEditor(); updateProgressMetrics();
+  const infoEl = document.getElementById('progAutoRulesInfo');
+  if (infoEl) infoEl.innerHTML = '✅ Pravidla pro <b>' + type + '.md</b> aplikována.';
+};
+
+// File input handlers
+document.getElementById('progAddFileInput').addEventListener('change', e => {
+  Array.from(e.target.files).forEach(f => {
+    const r = new FileReader();
+    r.onload = ev => addProgFile(ev.target.result, f.name);
+    r.readAsText(f);
+  });
+  e.target.value = '';
+});
+
+document.getElementById('progUseOldDiff').addEventListener('click', () => {
+  const txt = (lastDiffResult?.oldLines || []).join('\n') || oldText;
+  const name = oldFileName || 'diff-old.md';
+  if (!txt) { alert('Nejdřív nahraj soubory v záložce Diff.'); return; }
+  addProgFile(txt, name);
+});
+document.getElementById('progUseNewDiff').addEventListener('click', () => {
+  const txt = (lastDiffResult?.newLines || []).join('\n') || newText;
+  const name = newFileName || 'diff-new.md';
+  if (!txt) { alert('Nejdřív nahraj soubory v záložce Diff.'); return; }
+  addProgFile(txt, name);
+});
+
+document.getElementById('progClearAll').addEventListener('click', () => {
+  if (progFiles.length && !confirm('Odebrat všechny soubory z Progresu?')) return;
+  progFiles = []; progActiveIdx = 0;
+  renderProgFileTabs();
+});
+
+// Compare selects
+document.getElementById('progCompareLeft')?.addEventListener('change', e => {
+  progCompareIdxA = +e.target.value; updateProgressMetrics();
+});
+document.getElementById('progCompareRight')?.addEventListener('change', e => {
+  progCompareIdxB = +e.target.value; updateProgressMetrics();
+});
+
+// updateProgressMetrics — uses progFiles compare
+function updateProgressMetrics() {
+  const grid = document.getElementById('metricsGrid');
+  if (!grid) return;
+
+  const fA = progFiles[progCompareIdxA];
+  const fB = progFiles[progCompareIdxB];
+
+  if (!fA && !fB) {
+    const fallbackOl = lastDiffResult?.oldLines || [];
+    const fallbackNl = lastDiffResult?.newLines || [];
+    if (!fallbackOl.length && !fallbackNl.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-dim);padding:20px;font-size:12px;">Přidej soubory nebo proveď diff.</div>';
+      return;
+    }
+  }
+
+  const ol = fA?.lines || lastDiffResult?.oldLines || [];
+  const nl = fB?.lines || lastDiffResult?.newLines || ol;
+  const nameA = fA?.name || oldFileName || 'staré';
+  const nameB = fB?.name || newFileName || 'nové';
+
+  let html = `<div class="metric-card">
+    <div class="mlbl">Řádků<span style="font-family:var(--md-mono);font-size:9px;opacity:0.7;display:block;overflow:hidden;text-overflow:ellipsis;">${esc(nameA.replace(/\.md$/i,''))} → ${esc(nameB.replace(/\.md$/i,''))}</span></div>
+    <div class="mval">${nl.length}</div>
+    <div class="mdelta">${fmtDelta(nl.length - ol.length)} vs STARÉ</div>
+  </div>`;
+
+  for (const r of progressRules) {
+    if (!r.regex) continue;
+    const oc = countM(ol, r.regex), nc = countM(nl, r.regex);
+    const sr = r.regex.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html += `<div class="metric-card" style="cursor:pointer;" onclick="showProgressMatch('${r.name}','${sr}','${r.color}')" title="Klikni → zobrazit řádky">
+      <div class="mlbl"><span style="display:inline-block;width:10px;height:10px;background:${r.color};border-radius:2px;margin-right:4px;"></span>${esc(r.name)} <span style="opacity:0.5;font-size:9px;">▾</span></div>
+      <div class="mval" style="color:${r.color}">${nc}</div>
+      <div class="mdelta">${fmtDelta(nc - oc)} vs STARÉ</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
 window.showProgressMatch = function(ruleName, regex, color) {
-  const ol = progOldLines || lastDiffResult?.oldLines || [];
-  const nl = progNewLines || lastDiffResult?.newLines || [];
+  const fA = progFiles[progCompareIdxA];
+  const fB = progFiles[progCompareIdxB];
+  const ol = fA?.lines || lastDiffResult?.oldLines || [];
+  const nl = fB?.lines || lastDiffResult?.newLines || [];
   const det = document.getElementById('progressMatchDetail');
   const oldEl = document.getElementById('progressMatchOld');
   const newEl = document.getElementById('progressMatchNew');
@@ -5492,10 +5683,12 @@ async function buildCurrentFilesPanel(projectId) {
 
   const cf = loadCurrentFiles();
   const projectCF = cf[projectId] || {};
-  if (!Object.keys(projectCF).length) { strip.style.display = 'none'; return; }
-
-  strip.style.display = '';
   chips.innerHTML = '';
+
+  if (!Object.keys(projectCF).length) {
+    chips.innerHTML = '<span style="font-size:11px;color:var(--text-muted);">Žádné master soubory — klikni <b style="color:var(--accent);">⭐ Aktuální soubory</b> nahoře vpravo pro nastavení.</span>';
+    return;
+  }
 
   for (const [baseName, fileId] of Object.entries(projectCF)) {
     let f = null;
