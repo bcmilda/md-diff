@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>MD Diff v4.2</title>
+<title>MD Diff v4.3</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   :root {
@@ -858,7 +858,7 @@
 
   /* Project heading highlight */
   #projectDetailName { color: var(--accent) !important; font-size: 20px !important; }
-  .session-detail-hdr h3 { color: var(--mod-text); }
+  .session-detail-hdr h3 { color: var(--mod-text); font-size: 15px; font-weight: 700; }
 
   /* Stats bar */
   .stat-lbl { font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.5px; }
@@ -1342,7 +1342,9 @@
           <span style="font-size:11px;color:var(--text-dim);margin-left:auto;" id="snapshotCount">0 snapshotů</span>
         </div>
         <div style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:5px;padding:8px 12px;font-size:11px;color:#9ec5fe;margin-bottom:14px;line-height:1.6;">
-          💡 <strong>Před každou aktualizací nástroje</strong> klikni <strong>💾 Záloha všech dat</strong> — uloží snapshoty, historii, API klíč a pravidla do JSON. Po aktualizaci klikni <strong>📥 Obnovit zálohu</strong>.
+          💡 <strong>Před každou aktualizací nástroje</strong> klikni <strong>💾 Záloha všech dat</strong>
+          — uloží vše (snapshoty, historii, API klíč, pravidla, Projekty) do JSON.<br>
+          ⚠️ <strong>Data jsou vázána na URL</strong> — pokud používáš <code style="background:rgba(0,0,0,0.2);padding:1px 4px;border-radius:3px;">bcmilda.github.io/md-diff/</code>, data zůstanou. Lokální soubor = jiná URL = prázdné úložiště. — uloží snapshoty, historii, API klíč a pravidla do JSON. Po aktualizaci klikni <strong>📥 Obnovit zálohu</strong>.
         </div>
 
         <!-- Trend view tabs -->
@@ -1640,7 +1642,7 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
             <div class="projects-main-hdr">
               <div style="flex:1;">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-                  <h2 id="projectDetailName">—</h2>
+                  <h2 id="projectDetailName" style="color:var(--accent);font-size:22px;font-weight:800;letter-spacing:-0.3px;">—</h2>
                   <button class="btn sec sm" id="renameProjectBtn">✏️</button>
                   <button class="btn danger sm" id="deleteProjectBtn">🗑</button>
                 </div>
@@ -1648,6 +1650,15 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
               </div>
               <button class="btn sm" id="newSessionBtn">+ Session</button>
               <button class="btn sec sm" id="exportProjectBtn">📤 Export ZIP</button>
+            </div>
+
+            <!-- Current files strip -->
+            <div id="currentFilesStrip" style="display:none;background:var(--bg-alt);border-bottom:1px solid var(--border);padding:10px 20px;flex-shrink:0;">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800;color:var(--accent);flex-shrink:0;">⭐ Aktuální master soubory:</span>
+                <div id="currentFilesChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;"></div>
+                <button class="btn sec sm" onclick="showCurrentFilesManager()" style="flex-shrink:0;">Spravovat</button>
+              </div>
             </div>
 
             <!-- Session detail body -->
@@ -3891,8 +3902,10 @@ function saveSnapshots(snaps) {
 }
 
 document.getElementById('saveProgressSnapshot').addEventListener('click', () => {
-  if (!lastDiffResult) { alert('Nejdřív proveď diff.'); return; }
-  const ol = lastDiffResult.oldLines, nl = lastDiffResult.newLines;
+  // Use prog-specific files if loaded, otherwise fall back to diff
+  const ol = progOldLines || lastDiffResult?.oldLines || [];
+  const nl = progNewLines || lastDiffResult?.newLines || ol;
+  if (!ol.length) { alert('Nejdřív nahraj soubory v záložce Progres nebo proveď diff.'); return; }
   const session = prompt('Název snapshotu (např. "Session 7"):', 'Session ' + (loadSnapshots().length + 1));
   if (session === null) return;
   const metrics = { lines: nl.length };
@@ -3900,11 +3913,13 @@ document.getElementById('saveProgressSnapshot').addEventListener('click', () => 
     if (!r.regex) return;
     metrics[r.name] = { old: countM(ol, r.regex), new: countM(nl, r.regex) };
   });
+  const snapOldFile = progOldFileName || oldFileName || 'staré';
+  const snapNewFile = progNewFileName || newFileName || 'nové';
   const snap = {
     ts: Date.now(), session: session.trim(),
-    oldFile: oldFileName, newFile: newFileName,
-    stats: lastDiffResult.stats, metrics,
-    oldLines: ol.length, newLines: nl.length
+    oldFile: snapOldFile, newFile: snapNewFile,
+    stats: lastDiffResult?.stats || { similarity: 100, added: 0, removed: 0, modified: 0 },
+    metrics, oldLines: ol.length, newLines: nl.length
   };
   const snaps = loadSnapshots();
   snaps.unshift(snap);
@@ -3920,20 +3935,25 @@ document.getElementById('clearSnapshotsBtn').addEventListener('click', () => {
 });
 
 document.getElementById('exportProgressReport').addEventListener('click', () => {
-  if (!lastDiffResult) { alert('Nejdřív proveď diff.'); return; }
-  const ol = lastDiffResult.oldLines, nl = lastDiffResult.newLines;
+  const ol = progOldLines || lastDiffResult?.oldLines || [];
+  const nl = progNewLines || lastDiffResult?.newLines || ol;
+  if (!ol.length) { alert('Nejdřív nahraj soubory v Progresu nebo proveď diff.'); return; }
   const date = new Date().toLocaleDateString('cs-CZ');
+  const snapOldFile = progOldFileName || oldFileName || 'staré';
+  const snapNewFile = progNewFileName || newFileName || 'nové';
   let md = `# Progres Report — ${date}\n\n`;
-  md += `## Soubory\n- Staré: ${esc(oldFileName)}\n- Nové: ${esc(newFileName)}\n\n`;
-  md += `## Diff statistiky\n`;
-  md += `- Podobnost: **${lastDiffResult.stats.similarity}%**\n`;
-  md += `- Přidáno: +${lastDiffResult.stats.added} | Smazáno: -${lastDiffResult.stats.removed} | Upraveno: ~${lastDiffResult.stats.modified}\n`;
+  md += `## Soubory\n- Staré: ${esc(snapOldFile)}\n- Nové: ${esc(snapNewFile)}\n\n`;
+  if (lastDiffResult?.stats) {
+    md += `## Diff statistiky\n`;
+    md += `- Podobnost: **${lastDiffResult.stats.similarity}%**\n`;
+    md += `- Přidáno: +${lastDiffResult.stats.added} | Smazáno: -${lastDiffResult.stats.removed} | Upraveno: ~${lastDiffResult.stats.modified}\n`;
+  }
   md += `- Řádků: ${ol.length} → ${nl.length} (${nl.length > ol.length ? '+' : ''}${nl.length - ol.length})\n\n`;
   md += `## Metriky\n`;
   progressRules.forEach(r => {
     if (!r.regex) return;
-    const oc = countM(ol, r.regex), nc = countM(nl, r.regex);
-    md += `- **${r.name}**: ${nc} (${nc >= oc ? '+' : ''}${nc - oc} vs OLD)\n`;
+    const oc = countM(ol, r.regex), nc = countM(nl.length ? nl : ol, r.regex);
+    md += `- **${r.name}**: ${nc} (${nc >= oc ? '+' : ''}${nc - oc} vs STARÉ)\n`;
   });
   const snaps = loadSnapshots();
   if (snaps.length) {
@@ -4849,9 +4869,16 @@ window.selectSession = async function(sid) {
       <div class="sfc-top">
         <span class="sfc-icon">${ft.icon}</span>
         <span class="sfc-name" title="${esc(f.name)}">${esc(f.name)}</span>
-        <span class="sfc-type ${ft.css}">${ft.label}</span>
+        <select class="sfc-type-select" data-fid="${f.id}" onchange="changeFileType(${f.id}, this.value)" title="Změnit typ souboru"
+          style="background:${f.fileType==='patch'?'rgba(255,208,128,0.12)':f.fileType==='result'?'var(--add-bg)':f.fileType==='archive'?'var(--bg-alt)':'var(--accent-soft)'};border:1px solid ${f.fileType==='patch'?'rgba(255,208,128,0.3)':f.fileType==='result'?'var(--add-border)':f.fileType==='archive'?'var(--border)':'rgba(79,142,247,0.4)'};color:${f.fileType==='patch'?'var(--mod-text)':f.fileType==='result'?'var(--add-text)':f.fileType==='archive'?'var(--text-dim)':'var(--accent)'};border-radius:3px;padding:2px 4px;font-size:10px;font-weight:700;cursor:pointer;outline:none;">
+          <option value="current" ${f.fileType==='current'?'selected':''}>📄 Aktuální</option>
+          <option value="patch" ${f.fileType==='patch'?'selected':''}>🔧 Patch</option>
+          <option value="result" ${f.fileType==='result'?'selected':''}>✅ Výsledek</option>
+          <option value="archive" ${f.fileType==='archive'?'selected':''}>📦 Archiv</option>
+        </select>
       </div>
       <div class="sfc-meta">${lines} řádků · ${size} · ${new Date(f.ts).toLocaleDateString('cs-CZ',{day:'numeric',month:'short'})}</div>
+      ${(() => { const summ = extractFileSummary(f.content, 100); return summ ? `<div style="font-size:11px;color:var(--text-dim);margin-top:3px;line-height:1.5;font-style:italic;">${esc(summ)}</div>` : ''; })()}
       ${f.note ? `<div class="sfc-note">📝 ${esc(f.note)}</div>` : ''}
       <div class="sfc-actions">
         <button class="btn sec sm" onclick="openPFileInDiff(${f.id})">→ Diff</button>
@@ -4917,6 +4944,16 @@ window.addPFileNote = async function(fid) {
   f.note = note;
   await pdbUpdate('pfiles', f);
   await selectSession(f.sessionId);
+};
+
+window.changeFileType = async function(fid, newType) {
+  const f = await pdbGet('pfiles', fid);
+  if (!f) return;
+  f.fileType = newType;
+  await pdbUpdate('pfiles', f);
+  await selectSession(f.sessionId);
+  // Rebuild current files panel if visible
+  if (currentProjectId) await buildCurrentFilesPanel(currentProjectId);
 };
 
 window.deletePFile = async function(fid) {
@@ -5430,7 +5467,212 @@ function saveToHistory() {
 const _origRunDiffProg = runDiff;
 // Patch lastDiffResult usage — already handled above by checking lastDiffResult
 
+
+// ================================================================
+// CURRENT FILES — master file tracking per project
+// ================================================================
+// Stored in localStorage: { [projectId]: { [baseName]: fileId } }
+const LS_CURRENT_FILES = 'mddiff_current_files';
+
+function loadCurrentFiles() {
+  try { return JSON.parse(localStorage.getItem(LS_CURRENT_FILES) || '{}'); } catch(e) { return {}; }
+}
+function saveCurrentFilesData(data) {
+  try { localStorage.setItem(LS_CURRENT_FILES, JSON.stringify(data)); } catch(e) {}
+}
+
+function getBaseName(filename) {
+  return filename.toLowerCase().replace(/[_(\d)]+\.md$/i, '.md').replace(/\s+/g,'');
+}
+
+async function buildCurrentFilesPanel(projectId) {
+  const strip = document.getElementById('currentFilesStrip');
+  const chips = document.getElementById('currentFilesChips');
+  if (!strip || !chips) return;
+
+  const cf = loadCurrentFiles();
+  const projectCF = cf[projectId] || {};
+  if (!Object.keys(projectCF).length) { strip.style.display = 'none'; return; }
+
+  strip.style.display = '';
+  chips.innerHTML = '';
+
+  for (const [baseName, fileId] of Object.entries(projectCF)) {
+    let f = null;
+    try { f = await pdbGet('pfiles', fileId); } catch(e) {}
+    const chip = document.createElement('div');
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;background:var(--accent-soft);border:1px solid rgba(79,142,247,0.4);border-radius:4px;padding:3px 9px;font-family:var(--md-mono);font-size:11px;cursor:pointer;';
+    chip.innerHTML = `<span style="color:var(--accent);font-weight:600;">${esc(f?.name || baseName)}</span>`;
+    if (f) {
+      const sessions = await pdbGetByIndex('sessions', 'projectId', projectId);
+      const sess = sessions.find(s => s.id === f.sessionId);
+      if (sess) chip.innerHTML += `<span style="color:var(--text-muted);font-size:10px;">· ${esc(sess.name)}</span>`;
+      chip.title = `${f.name} · ${f.content?.split('\n').length || 0} řádků — klikni pro otevření`;
+      chip.addEventListener('click', () => openPFileInDiff(fileId));
+    } else {
+      chip.innerHTML += '<span style="color:var(--del-text);font-size:10px;">· smazán</span>';
+    }
+    chips.appendChild(chip);
+  }
+}
+
+window.showCurrentFilesManager = async function() {
+  if (!currentProjectId) return;
+  const overlay = document.getElementById('currentFilesOverlay');
+  overlay.classList.add('active');
+  await renderCurrentFilesManager();
+};
+
+async function renderCurrentFilesManager() {
+  const body = document.getElementById('currentFilesManagerBody');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);">Načítám…</div>';
+  if (!currentProjectId) return;
+
+  // Get all files in project
+  const allFiles = await pdbGetByIndex('pfiles', 'projectId', currentProjectId);
+  const sessions = await pdbGetByIndex('sessions', 'projectId', currentProjectId);
+  const sessMap = Object.fromEntries(sessions.map(s => [s.id, s]));
+
+  // Group by base name
+  const groups = {};
+  allFiles.forEach(f => {
+    const base = getBaseName(f.name);
+    if (!groups[base]) groups[base] = [];
+    groups[base].push(f);
+  });
+
+  const cf = loadCurrentFiles();
+  const projectCF = cf[currentProjectId] || {};
+
+  body.innerHTML = '';
+  for (const [base, files] of Object.entries(groups).sort()) {
+    const currentId = projectCF[base];
+    const section = document.createElement('div');
+    section.style.cssText = 'border-bottom:1px solid var(--border);padding:12px 14px;';
+
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'font-family:var(--md-mono);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;';
+    hdr.textContent = base;
+    section.appendChild(hdr);
+
+    files.sort((a,b) => b.ts - a.ts).forEach(f => {
+      const sess = sessMap[f.sessionId];
+      const isCurrent = f.id === currentId;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:4px;cursor:pointer;${isCurrent ? 'background:var(--accent-soft);border:1px solid rgba(79,142,247,0.3);' : 'border:1px solid transparent;'}`;
+      row.innerHTML = `
+        <span style="font-size:14px;">${isCurrent ? '⭐' : '○'}</span>
+        <span style="font-family:var(--md-mono);font-size:12px;flex:1;color:${isCurrent ? 'var(--text)' : 'var(--text-dim)'};">${esc(f.name)}</span>
+        <span style="font-size:10px;color:var(--text-muted);">${esc(sess?.name || '?')}</span>
+        <span style="font-size:10px;color:var(--text-muted);font-family:var(--md-mono);">${f.content?.split('\n').length || 0}ř</span>
+        <span style="font-size:10px;color:${f.fileType==='current'?'var(--accent)':f.fileType==='patch'?'var(--mod-text)':'var(--text-muted)'};">${f.fileType}</span>
+      `;
+      row.dataset.fid = f.id;
+      row.dataset.base = base;
+      row.addEventListener('click', () => {
+        // Toggle current
+        section.querySelectorAll('[data-base]').forEach(r => {
+          r.style.background = 'transparent';
+          r.style.border = '1px solid transparent';
+          r.querySelector('span').textContent = '○';
+        });
+        row.style.background = 'var(--accent-soft)';
+        row.style.border = '1px solid rgba(79,142,247,0.3)';
+        row.querySelector('span').textContent = '⭐';
+        row.dataset.selected = '1';
+      });
+      if (isCurrent) row.dataset.selected = '1';
+      section.appendChild(row);
+    });
+
+    // Option to clear current for this base
+    const clearBtn = document.createElement('div');
+    clearBtn.style.cssText = 'font-size:10px;color:var(--text-muted);cursor:pointer;padding:2px 8px;margin-top:4px;';
+    clearBtn.textContent = '× Zrušit master pro tento soubor';
+    clearBtn.addEventListener('click', () => {
+      section.querySelectorAll('[data-base]').forEach(r => {
+        r.style.background = 'transparent';
+        r.style.border = '1px solid transparent';
+        r.querySelector('span').textContent = '○';
+        delete r.dataset.selected;
+      });
+    });
+    section.appendChild(clearBtn);
+    body.appendChild(section);
+  }
+}
+
+window.saveCurrentFiles = async function() {
+  const body = document.getElementById('currentFilesManagerBody');
+  const cf = loadCurrentFiles();
+  if (!cf[currentProjectId]) cf[currentProjectId] = {};
+
+  // Collect all selected
+  body.querySelectorAll('[data-selected="1"]').forEach(row => {
+    cf[currentProjectId][row.dataset.base] = +row.dataset.fid;
+  });
+  // Remove bases that have no selection (cleared)
+  body.querySelectorAll('[data-base]').forEach(row => {
+    if (row.dataset.base && !body.querySelector(`[data-base="${row.dataset.base}"][data-selected="1"]`)) {
+      delete cf[currentProjectId][row.dataset.base];
+    }
+  });
+
+  saveCurrentFilesData(cf);
+  document.getElementById('currentFilesOverlay').classList.remove('active');
+  await buildCurrentFilesPanel(currentProjectId);
+};
+
+// Hook into selectProject to show current files strip
+const _origSelectProject = window.selectProject;
+window.selectProject = async function(pid) {
+  await _origSelectProject(pid);
+  await buildCurrentFilesPanel(pid);
+};
+
+
+// ================================================================
+// FILE SUMMARY — extract description from md content
+// ================================================================
+function extractFileSummary(content, maxLen) {
+  if (!content) return '';
+  const lines = content.split('\n').filter(l => l.trim());
+  // Try to find first meaningful paragraph (not heading, not empty)
+  for (const line of lines) {
+    const l = line.trim();
+    if (!l || /^#+/.test(l) || /^[-*|>]/.test(l) || /^```/.test(l)) continue;
+    // Clean markdown
+    const clean = l.replace(/\*{1,3}([^*]+)\*{1,3}/g,'$1').replace(/`[^`]+`/g,'').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').trim();
+    if (clean.length > 15) return clean.slice(0, maxLen || 120) + (clean.length > (maxLen||120) ? '…' : '');
+  }
+  // Fallback: first heading content
+  for (const line of lines) {
+    const hm = line.match(/^#{1,3}\s+(.+)/);
+    if (hm) return hm[1].slice(0, maxLen || 120);
+  }
+  return '';
+}
+
 </script>
+
+<!-- CURRENT FILES MANAGER MODAL -->
+<div class="picker-overlay" id="currentFilesOverlay" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="picker-modal" style="width:680px;" onclick="event.stopPropagation()">
+    <div class="picker-hdr">
+      <h3>⭐ Aktuální master soubory projektu</h3>
+      <button class="btn sec sm" onclick="document.getElementById('currentFilesOverlay').classList.remove('active')">✕</button>
+    </div>
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);line-height:1.6;">
+      Pro každý název souboru označte <b>jeden</b> soubor jako "aktuální master". Tento soubor se zobrazí v liště nahoře.
+      Vždy by měl být aktuální pouze jedna verze každého souboru (npr. <code style="background:var(--bg-card);padding:1px 5px;border-radius:3px;">todo.md</code> ze Session 7).
+    </div>
+    <div class="picker-body" id="currentFilesManagerBody" style="max-height:60vh;"></div>
+    <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;">
+      <button class="btn sm" onclick="saveCurrentFiles()">✓ Uložit</button>
+      <button class="btn sec sm" onclick="document.getElementById('currentFilesOverlay').classList.remove('active')">Zavřít</button>
+    </div>
+  </div>
+</div>
 
 <!-- FILE PICKER MODAL -->
 <div class="picker-overlay" id="filePickerOverlay" onclick="closeFilePicker(event)">
