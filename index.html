@@ -1300,17 +1300,22 @@
       <!-- METRICS TAB -->
       <div id="progress-tab-metrics" class="storage-section active">
 
-        <!-- File tabs by filename -->
-        <div id="progFileTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
-          <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-muted);font-weight:700;white-space:nowrap;">Soubory:</span>
-          <div id="progFileTabsList" style="display:flex;gap:4px;flex-wrap:wrap;flex:1;"></div>
-          <label class="btn sm" style="cursor:pointer;font-size:11px;">
-            + Přidat soubor
+        <!-- File upload bar — always visible at top -->
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:11px;font-weight:700;color:var(--text-dim);white-space:nowrap;">📂 Přidat soubory:</span>
+          <label style="padding:5px 12px;background:var(--accent);color:white;border:none;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+            + Soubor z disku
             <input type="file" id="progAddFileInput" accept=".md,.txt" multiple style="display:none;">
           </label>
-          <button class="btn sec sm" id="progUseOldDiff" title="Přidat OLD z diffu">+ Diff OLD</button>
-          <button class="btn sec sm" id="progUseNewDiff" title="Přidat NEW z diffu">+ Diff NEW</button>
-          <button class="btn danger sm" id="progClearAll" title="Vymazat vše">✕</button>
+          <button class="btn sec sm" id="progUseOldDiff">+ Diff OLD</button>
+          <button class="btn sec sm" id="progUseNewDiff">+ Diff NEW</button>
+          <button class="btn danger sm" id="progClearAll" style="margin-left:auto;">✕ Vymazat vše</button>
+        </div>
+
+        <!-- File tabs — shown when files loaded -->
+        <div id="progFileTabs" style="margin-bottom:12px;display:none;">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:800;margin-bottom:6px;">Načtené soubory — klikni pro přepnutí:</div>
+          <div id="progFileTabsList" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
         </div>
 
         <!-- Active file display -->
@@ -1699,10 +1704,16 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
                 <div id="currentFilesChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-height:24px;align-items:center;">
                   <span id="currentFilesEmpty" style="font-size:12px;color:var(--text-dim);align-self:center;">Žádné — klikni tlačítko →</span>
                 </div>
-                <button onclick="showCurrentFilesManager()"
-                  style="flex-shrink:0;padding:6px 14px;background:var(--accent);color:white;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(79,142,247,0.4);">
-                  ⭐ Nastavit master soubory
-                </button>
+                <div style="display:flex;gap:6px;flex-shrink:0;">
+                  <button onclick="showCurrentFilesManager()"
+                    style="padding:6px 14px;background:var(--accent);color:white;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(79,142,247,0.4);">
+                    ⭐ Nastavit
+                  </button>
+                  <button onclick="showCurrentFilesManager();setTimeout(showMasterFilesTable,200)"
+                    style="padding:6px 12px;background:rgba(245,166,35,0.15);border:1.5px solid #f5a623;color:#f5a623;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">
+                    📊 Přehled
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -5418,15 +5429,18 @@ function renderProgFileTabs() {
   if (!tabsEl) return;
   const empty = document.getElementById('progEmptyState');
   const panel = document.getElementById('progActiveFilePanel');
+  const tabsWrap = document.getElementById('progFileTabs');
 
   if (!progFiles.length) {
     if (empty) empty.style.display = '';
     if (panel) panel.style.display = 'none';
+    if (tabsWrap) tabsWrap.style.display = 'none';
     tabsEl.innerHTML = '';
     return;
   }
   if (empty) empty.style.display = 'none';
   if (panel) panel.style.display = '';
+  if (tabsWrap) tabsWrap.style.display = '';
 
   tabsEl.innerHTML = progFiles.map((f, i) => {
     const detected = detectFileType(f.name);
