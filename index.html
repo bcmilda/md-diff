@@ -5705,7 +5705,7 @@ async function buildCurrentFilesPanel(projectId) {
     if (f) {
       const sessions = await pdbGetByIndex('sessions', 'projectId', projectId);
       const sess = sessions.find(s => s.id === f.sessionId);
-      if (sess) chip.innerHTML += `<span style="color:var(--text-muted);font-size:10px;">· ${esc(sess.name)}</span>`;
+      if (sess) chip.innerHTML += `<span style="color:#f5a623;font-size:10px;font-weight:700;">· ${esc(sess.name)}</span>`;
       chip.title = `${f.name} · ${f.content?.split('\n').length || 0} řádků — klikni pro otevření`;
       chip.addEventListener('click', () => openPFileInDiff(fileId));
     } else {
@@ -5727,12 +5727,10 @@ async function renderCurrentFilesManager() {
   body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);">Načítám…</div>';
   if (!currentProjectId) return;
 
-  // Get all files in project
   const allFiles = await pdbGetByIndex('pfiles', 'projectId', currentProjectId);
   const sessions = await pdbGetByIndex('sessions', 'projectId', currentProjectId);
   const sessMap = Object.fromEntries(sessions.map(s => [s.id, s]));
 
-  // Group by base name
   const groups = {};
   allFiles.forEach(f => {
     const base = getBaseName(f.name);
@@ -5750,41 +5748,68 @@ async function renderCurrentFilesManager() {
     section.style.cssText = 'border-bottom:1px solid var(--border);padding:12px 14px;';
 
     const hdr = document.createElement('div');
-    hdr.style.cssText = 'font-family:var(--md-mono);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;';
+    hdr.style.cssText = 'font-family:var(--md-mono);font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px;letter-spacing:0.3px;';
     hdr.textContent = base;
     section.appendChild(hdr);
 
     files.sort((a,b) => b.ts - a.ts).forEach(f => {
       const sess = sessMap[f.sessionId];
       const isCurrent = f.id === currentId;
+      const lines = f.content?.split('\n').length || 0;
+      const summary = extractFileSummary ? extractFileSummary(f.content, 80) : '';
+      const ftColor = f.fileType==='current'?'var(--accent)':f.fileType==='patch'?'var(--mod-text)':f.fileType==='result'?'var(--add-text)':'var(--text-muted)';
+
       const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:4px;cursor:pointer;${isCurrent ? 'background:var(--accent-soft);border:1px solid rgba(79,142,247,0.3);' : 'border:1px solid transparent;'}`;
-      row.innerHTML = `
-        <span style="font-size:14px;">${isCurrent ? '⭐' : '○'}</span>
-        <span style="font-family:var(--md-mono);font-size:12px;flex:1;color:${isCurrent ? 'var(--text)' : 'var(--text-dim)'};">${esc(f.name)}</span>
-        <span style="font-size:10px;color:var(--text-muted);">${esc(sess?.name || '?')}</span>
-        <span style="font-size:10px;color:var(--text-muted);font-family:var(--md-mono);">${f.content?.split('\n').length || 0}ř</span>
-        <span style="font-size:10px;color:${f.fileType==='current'?'var(--accent)':f.fileType==='patch'?'var(--mod-text)':'var(--text-muted)'};">${f.fileType}</span>
+      row.style.cssText = `display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:5px;cursor:pointer;margin-bottom:2px;transition:background 0.1s;${isCurrent ? 'background:var(--accent-soft);border:1px solid rgba(79,142,247,0.3);' : 'border:1px solid transparent;'}`;
+
+      // Star / circle toggle
+      const starSpan = document.createElement('span');
+      starSpan.style.cssText = 'font-size:16px;flex-shrink:0;width:20px;text-align:center;';
+      starSpan.textContent = isCurrent ? '⭐' : '○';
+
+      // File info block
+      const infoDiv = document.createElement('div');
+      infoDiv.style.cssText = 'flex:1;min-width:0;';
+      infoDiv.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-family:var(--md-mono);font-size:12px;font-weight:600;color:${isCurrent?'var(--text)':'var(--text-dim)'};">${esc(f.name)}</span>
+          <span style="font-size:11px;font-weight:700;color:#f5a623;background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.3);border-radius:3px;padding:1px 6px;">${esc(sess?.name || '?')}</span>
+          <span style="font-size:10px;font-family:var(--md-mono);color:var(--text-dim);">${lines} ř</span>
+          <span style="font-size:10px;font-weight:700;color:${ftColor};border:1px solid ${ftColor};border-radius:3px;padding:1px 5px;opacity:0.9;">${f.fileType}</span>
+        </div>
+        ${summary ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(summary)}</div>` : ''}
       `;
+
+      // Download button
+      const dlBtn = document.createElement('button');
+      dlBtn.style.cssText = 'background:var(--bg-alt);border:1px solid var(--border);color:var(--text-dim);padding:3px 8px;border-radius:3px;font-size:11px;cursor:pointer;flex-shrink:0;';
+      dlBtn.textContent = '⬇';
+      dlBtn.title = 'Stáhnout soubor';
+      dlBtn.addEventListener('click', e => { e.stopPropagation(); downloadPFile(f.id); });
+
+      row.appendChild(starSpan);
+      row.appendChild(infoDiv);
+      row.appendChild(dlBtn);
       row.dataset.fid = f.id;
       row.dataset.base = base;
+
       row.addEventListener('click', () => {
-        // Toggle current
         section.querySelectorAll('[data-base]').forEach(r => {
           r.style.background = 'transparent';
           r.style.border = '1px solid transparent';
           r.querySelector('span').textContent = '○';
+          delete r.dataset.selected;
         });
         row.style.background = 'var(--accent-soft)';
         row.style.border = '1px solid rgba(79,142,247,0.3)';
-        row.querySelector('span').textContent = '⭐';
+        starSpan.textContent = '⭐';
         row.dataset.selected = '1';
       });
       if (isCurrent) row.dataset.selected = '1';
       section.appendChild(row);
     });
 
-    // Option to clear current for this base
+    // Clear button
     const clearBtn = document.createElement('div');
     clearBtn.style.cssText = 'font-size:10px;color:var(--text-muted);cursor:pointer;padding:2px 8px;margin-top:4px;';
     clearBtn.textContent = '× Zrušit master pro tento soubor';
@@ -5852,6 +5877,87 @@ function extractFileSummary(content, maxLen) {
   return '';
 }
 
+
+// ================================================================
+// MASTER FILES TABLE VIEW
+// ================================================================
+window.showMasterFilesTable = async function() {
+  const tableView = document.getElementById('masterFilesTableView');
+  const tbody = document.getElementById('masterFilesTableBody');
+  const btn = document.getElementById('masterViewTableBtn');
+  const isVisible = tableView.style.display !== 'none';
+
+  if (isVisible) {
+    tableView.style.display = 'none';
+    btn.style.background = 'var(--bg-card)';
+    btn.style.color = 'var(--text-dim)';
+    return;
+  }
+
+  tableView.style.display = '';
+  btn.style.background = 'var(--accent-soft)';
+  btn.style.color = 'var(--accent)';
+
+  if (!currentProjectId) return;
+  const cf = loadCurrentFiles();
+  const projectCF = cf[currentProjectId] || {};
+
+  if (!Object.keys(projectCF).length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-dim);">Žádné master soubory.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  const sessions = await pdbGetByIndex('sessions', 'projectId', currentProjectId);
+  const sessMap = Object.fromEntries(sessions.map(s => [s.id, s]));
+
+  for (const [base, fileId] of Object.entries(projectCF).sort()) {
+    let f = null;
+    try { f = await pdbGet('pfiles', fileId); } catch(e) {}
+    if (!f) continue;
+
+    const sess = sessMap[f.sessionId];
+    const lines = f.content?.split('\n').length || 0;
+    const summary = extractFileSummary ? extractFileSummary(f.content, 100) : '';
+    const size = f.content ? (f.content.length / 1024).toFixed(1) + ' KB' : '?';
+
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid var(--border);transition:background 0.1s;cursor:pointer;';
+    tr.innerHTML = `
+      <td style="padding:8px 10px;">
+        <span style="font-family:var(--md-mono);font-size:12px;font-weight:700;color:var(--text);">${esc(f.name)}</span>
+        <span style="font-size:10px;color:var(--text-muted);display:block;">${size}</span>
+      </td>
+      <td style="padding:8px 10px;">
+        <span style="font-size:11px;font-weight:700;color:#f5a623;background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.25);border-radius:3px;padding:2px 7px;">${esc(sess?.name || '?')}</span>
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-family:var(--md-mono);font-size:12px;font-weight:700;color:var(--accent);">${lines}</td>
+      <td style="padding:8px 10px;font-size:11px;color:var(--text-dim);font-style:italic;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(summary)}">${esc(summary || '—')}</td>
+      <td style="padding:8px 10px;display:flex;gap:4px;">
+        <button onclick="openPFileInDiff(${f.id})" style="background:var(--accent-soft);border:1px solid rgba(79,142,247,0.3);color:var(--accent);padding:3px 8px;border-radius:3px;font-size:10px;cursor:pointer;white-space:nowrap;">→ Diff</button>
+        <button onclick="downloadPFile(${f.id})" style="background:var(--bg-alt);border:1px solid var(--border);color:var(--text-dim);padding:3px 8px;border-radius:3px;font-size:10px;cursor:pointer;">⬇</button>
+      </td>
+    `;
+    tr.addEventListener('mouseenter', () => tr.style.background = 'var(--bg-card)');
+    tr.addEventListener('mouseleave', () => tr.style.background = '');
+    tbody.appendChild(tr);
+  }
+
+  // Summary row
+  const sumTr = document.createElement('tr');
+  sumTr.innerHTML = `<td colspan="2" style="padding:8px 10px;font-size:11px;color:var(--text-muted);">Celkem ${Object.keys(projectCF).length} master souborů</td>
+    <td style="padding:8px 10px;text-align:right;font-family:var(--md-mono);font-size:12px;font-weight:700;color:var(--text);" id="masterTotalLines">—</td>
+    <td colspan="2"></td>`;
+  tbody.appendChild(sumTr);
+
+  // Total lines
+  let total = 0;
+  for (const fileId of Object.values(projectCF)) {
+    try { const f = await pdbGet('pfiles', fileId); if (f?.content) total += f.content.split('\n').length; } catch(e) {}
+  }
+  document.getElementById('masterTotalLines').textContent = total.toLocaleString('cs-CZ') + ' ř';
+};
+
 </script>
 
 <!-- CURRENT FILES MANAGER MODAL -->
@@ -5859,7 +5965,27 @@ function extractFileSummary(content, maxLen) {
   <div class="picker-modal" style="width:680px;" onclick="event.stopPropagation()">
     <div class="picker-hdr">
       <h3>⭐ Aktuální master soubory projektu</h3>
-      <button class="btn sec sm" onclick="document.getElementById('currentFilesOverlay').classList.remove('active')">✕</button>
+      <div style="display:flex;gap:6px;margin-left:auto;align-items:center;">
+        <button onclick="showMasterFilesTable()" id="masterViewTableBtn"
+          style="padding:4px 10px;font-size:11px;font-weight:600;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-dim);cursor:pointer;"
+          title="Přehled jako tabulka">📊 Přehled</button>
+        <button onclick="document.getElementById('currentFilesOverlay').classList.remove('active')" class="btn sec sm">✕</button>
+      </div>
+    </div>
+    <!-- Table overview (hidden by default) -->
+    <div id="masterFilesTableView" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg);">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-size:10px;letter-spacing:0.7px;text-transform:uppercase;">Soubor</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-size:10px;letter-spacing:0.7px;text-transform:uppercase;">Session</th>
+            <th style="text-align:right;padding:6px 10px;color:var(--text-muted);font-size:10px;letter-spacing:0.7px;text-transform:uppercase;">Řádků</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-size:10px;letter-spacing:0.7px;text-transform:uppercase;">Popis</th>
+            <th style="padding:6px 10px;"></th>
+          </tr>
+        </thead>
+        <tbody id="masterFilesTableBody"></tbody>
+      </table>
     </div>
     <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);line-height:1.6;">
       Pro každý název souboru označte <b>jeden</b> soubor jako "aktuální master". Tento soubor se zobrazí v liště nahoře.
