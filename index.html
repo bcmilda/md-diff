@@ -957,6 +957,8 @@
   .fewshot-col-hdr.orig { color: var(--text-dim); }
   .fewshot-col-hdr.patch { color: var(--mod-text); }
   .fewshot-col-hdr.result { color: var(--add-text); }
+  .fewshot-file-lbl { cursor: pointer; font-size: 13px; margin-left: 6px; opacity: 0.6; }
+  .fewshot-file-lbl:hover { opacity: 1; }
   .fewshot-col textarea { width: 100%; background: transparent; color: var(--text); border: none; outline: none; padding: 10px 12px; font-family: var(--md-mono); font-size: 11px; line-height: 1.5; resize: none; min-height: 120px; display: block; }
   .fewshot-col textarea:focus { background: rgba(255,255,255,0.02); }
   .fewshot-item-actions { padding: 8px 14px; display: flex; gap: 8px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.1); }
@@ -1949,25 +1951,48 @@ function instrRenderSlots() {
   instrSlots.forEach((slot, i) => {
     const btn = document.createElement('button');
     btn.className = 'instr-slot-btn' + (i === instrActiveSlot ? ' active' : '');
-    btn.title = 'Klikni pro přepnutí · Dvojklik na název pro přejmenování';
-    // Editable name span
+    // Celé tlačítko = klik pro přepnutí
+    btn.addEventListener('click', () => {
+      instrSlots[instrActiveSlot].text = document.getElementById('mergeInstruction').value;
+      instrActiveSlot = i;
+      instrSaveSlots();
+      instrSyncToTextarea();
+      instrRenderSlots();
+    });
+    // Název — prostý text, editovatelný až dvojklikem
     const nameSpan = document.createElement('span');
     nameSpan.className = 'instr-slot-name';
-    nameSpan.contentEditable = 'true';
     nameSpan.textContent = slot.name;
-    nameSpan.addEventListener('click', e => e.stopPropagation());
+    nameSpan.contentEditable = 'false';
+    nameSpan.title = 'Dvojklik pro přejmenování';
+    nameSpan.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      nameSpan.contentEditable = 'true';
+      nameSpan.focus();
+      // Select all
+      const range = document.createRange();
+      range.selectNodeContents(nameSpan);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    });
     nameSpan.addEventListener('blur', () => {
+      nameSpan.contentEditable = 'false';
       instrSlots[i].name = nameSpan.textContent.trim() || ('Pravidla ' + (i+1));
       instrSaveSlots();
       instrRenderSlots();
     });
-    nameSpan.addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); nameSpan.blur(); } });
+    nameSpan.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); nameSpan.blur(); }
+      if (e.key === 'Escape') { nameSpan.textContent = instrSlots[i].name; nameSpan.blur(); }
+      e.stopPropagation(); // zabráníme Shift+N/P navigaci diffu
+    });
+    nameSpan.addEventListener('click', e => e.stopPropagation()); // při editaci nezpůsobit přepnutí
     btn.appendChild(nameSpan);
     // Delete button (pokud víc než 1 slot)
     if (instrSlots.length > 1) {
       const del = document.createElement('span');
       del.textContent = '×';
-      del.style.cssText = 'font-size:12px;margin-left:2px;opacity:0.5;';
+      del.style.cssText = 'font-size:12px;margin-left:4px;opacity:0.4;line-height:1;';
       del.title = 'Smazat tuto sadu';
       del.addEventListener('click', e => {
         e.stopPropagation();
@@ -1980,14 +2005,6 @@ function instrRenderSlots() {
       });
       btn.appendChild(del);
     }
-    btn.addEventListener('click', () => {
-      // Ulož aktuální obsah textarea do aktivního slotu
-      instrSlots[instrActiveSlot].text = document.getElementById('mergeInstruction').value;
-      instrActiveSlot = i;
-      instrSaveSlots();
-      instrSyncToTextarea();
-      instrRenderSlots();
-    });
     bar.appendChild(btn);
   });
   // Tlačítko přidat slot
@@ -3237,15 +3254,15 @@ function renderFewshotList() {
         </div>
         <div class="fewshot-cols">
           <div class="fewshot-col">
-            <div class="fewshot-col-hdr orig">Originál</div>
+            <div class="fewshot-col-hdr orig">Originál <label class="fewshot-file-lbl" title="Načíst ze souboru">📂<input type="file" accept=".md,.txt" data-idx="${idx}" data-field="orig" style="display:none;"></label></div>
             <textarea placeholder="Původní soubor před merge…" data-idx="${idx}" data-field="orig" spellcheck="false">${esc(ex.orig || '')}</textarea>
           </div>
           <div class="fewshot-col">
-            <div class="fewshot-col-hdr patch">Patch / session</div>
+            <div class="fewshot-col-hdr patch">Patch / session <label class="fewshot-file-lbl" title="Načíst ze souboru">📂<input type="file" accept=".md,.txt" data-idx="${idx}" data-field="patch" style="display:none;"></label></div>
             <textarea placeholder="Patch ze session…" data-idx="${idx}" data-field="patch" spellcheck="false">${esc(ex.patch || '')}</textarea>
           </div>
           <div class="fewshot-col">
-            <div class="fewshot-col-hdr result">Správný výsledek ✓</div>
+            <div class="fewshot-col-hdr result">Správný výsledek ✓ <label class="fewshot-file-lbl" title="Načíst ze souboru">📂<input type="file" accept=".md,.txt" data-idx="${idx}" data-field="result" style="display:none;"></label></div>
             <textarea placeholder="Jak má správně vypadat výsledek merge…" data-idx="${idx}" data-field="result" spellcheck="false">${esc(ex.result || '')}</textarea>
           </div>
         </div>
@@ -3273,6 +3290,28 @@ function renderFewshotList() {
         const ex = fewshotExamples[idx];
         sub.textContent = `${ex.orig?ex.orig.split('\n').length:0} řádků orig · ${ex.patch?ex.patch.split('\n').length:0} řádků patch · ${ex.result?ex.result.split('\n').length:0} řádků výsledek`;
       }
+    });
+  });
+  // bind file inputs v fewshot sloupcích
+  list.querySelectorAll('input[type=file][data-field]').forEach(input => {
+    input.addEventListener('change', e => {
+      const f = e.target.files[0]; if (!f) return;
+      const idx = +e.target.dataset.idx;
+      const field = e.target.dataset.field;
+      const r = new FileReader();
+      r.onload = ev => {
+        fewshotExamples[idx][field] = ev.target.result;
+        saveFewshot();
+        renderFewshotList();
+        // znovu otevřít příklad
+        setTimeout(() => {
+          const body = document.getElementById('fewshot-body-' + idx);
+          const tog = document.getElementById('fewshot-toggle-' + idx);
+          if (body && !body.classList.contains('open')) { body.classList.add('open'); if(tog) tog.textContent='▾'; }
+        }, 30);
+      };
+      r.readAsText(f);
+      e.target.value = '';
     });
   });
   updateFewshotBadge();
