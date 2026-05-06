@@ -506,6 +506,8 @@
   .instr-slot-name { outline: none; background: transparent; border: none; color: inherit; font: inherit; min-width: 20px; max-width: 100px; cursor: text; }
   .instr-slot-add { background: transparent; border: 1px dashed var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; color: var(--text-dim); cursor: pointer; }
   .instr-slot-add:hover { border-color: var(--accent); color: var(--accent); }
+  .instr-slot-del { background: transparent; border: none; color: var(--text-dim); font-size: 13px; cursor: pointer; padding: 0 2px; margin-left: -4px; margin-right: 4px; line-height: 1; opacity: 0.5; }
+  .instr-slot-del:hover { color: var(--del-text); opacity: 1; }
   .file-pick-lbl { cursor: pointer; font-size: 11px !important; }
   .file-pick-lbl:hover { border-color: var(--accent); color: var(--accent); }
   .apikey-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 15px; }
@@ -1951,7 +1953,10 @@ function instrRenderSlots() {
   instrSlots.forEach((slot, i) => {
     const btn = document.createElement('button');
     btn.className = 'instr-slot-btn' + (i === instrActiveSlot ? ' active' : '');
-    // Celé tlačítko = klik pro přepnutí
+    btn.title = slot.name + ' · Dvojklik pro přejmenování';
+    // Jednoduchý text — žádný contentEditable, žádné dětské elementy co by zachytávaly klik
+    btn.textContent = slot.name;
+    // Klik = přepnout
     btn.addEventListener('click', () => {
       instrSlots[instrActiveSlot].text = document.getElementById('mergeInstruction').value;
       instrActiveSlot = i;
@@ -1959,41 +1964,23 @@ function instrRenderSlots() {
       instrSyncToTextarea();
       instrRenderSlots();
     });
-    // Název — prostý text, editovatelný až dvojklikem
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'instr-slot-name';
-    nameSpan.textContent = slot.name;
-    nameSpan.contentEditable = 'false';
-    nameSpan.title = 'Dvojklik pro přejmenování';
-    nameSpan.addEventListener('dblclick', e => {
+    // Dvojklik = přejmenovat přes prompt
+    btn.addEventListener('dblclick', e => {
       e.stopPropagation();
-      nameSpan.contentEditable = 'true';
-      nameSpan.focus();
-      // Select all
-      const range = document.createRange();
-      range.selectNodeContents(nameSpan);
-      window.getSelection().removeAllRanges();
-      window.getSelection().addRange(range);
+      const newName = prompt('Přejmenovat sadu:', slot.name);
+      if (newName && newName.trim()) {
+        instrSlots[i].name = newName.trim();
+        instrSaveSlots();
+        instrRenderSlots();
+      }
     });
-    nameSpan.addEventListener('blur', () => {
-      nameSpan.contentEditable = 'false';
-      instrSlots[i].name = nameSpan.textContent.trim() || ('Pravidla ' + (i+1));
-      instrSaveSlots();
-      instrRenderSlots();
-    });
-    nameSpan.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); nameSpan.blur(); }
-      if (e.key === 'Escape') { nameSpan.textContent = instrSlots[i].name; nameSpan.blur(); }
-      e.stopPropagation(); // zabráníme Shift+N/P navigaci diffu
-    });
-    nameSpan.addEventListener('click', e => e.stopPropagation()); // při editaci nezpůsobit přepnutí
-    btn.appendChild(nameSpan);
-    // Delete button (pokud víc než 1 slot)
+    // Delete button jako samostatné tlačítko vedle (ne uvnitř btn)
+    bar.appendChild(btn);
     if (instrSlots.length > 1) {
-      const del = document.createElement('span');
+      const del = document.createElement('button');
       del.textContent = '×';
-      del.style.cssText = 'font-size:12px;margin-left:4px;opacity:0.4;line-height:1;';
-      del.title = 'Smazat tuto sadu';
+      del.className = 'instr-slot-del';
+      del.title = 'Smazat sadu "' + slot.name + '"';
       del.addEventListener('click', e => {
         e.stopPropagation();
         if (!confirm('Smazat sadu "' + slot.name + '"?')) return;
@@ -2003,9 +1990,8 @@ function instrRenderSlots() {
         instrSyncToTextarea();
         instrRenderSlots();
       });
-      btn.appendChild(del);
+      bar.appendChild(del);
     }
-    bar.appendChild(btn);
   });
   // Tlačítko přidat slot
   const add = document.createElement('button');
