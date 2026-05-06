@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>MD Diff v4.5</title>
+<title>MD Diff v4.6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   :root {
@@ -1640,7 +1640,7 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
             <button class="result-view-tab active" id="resultViewRaw" onclick="switchResultView('raw')">📝 Text</button>
             <button class="result-view-tab" id="resultViewBlocks" onclick="switchResultView('blocks')">🧩 Bloky</button>
           </div>
-          <span style="font-size:11px;color:var(--text-dim);" id="resultViewHint">Editovatelný text výsledku</span>
+          <span style="font-size:11px;color:var(--text-dim);" id="resultViewHint">Editovatelný text výsledku — změny v Blocích se sem průběžně propíší</span>
         </div>
 
         <!-- RAW textarea -->
@@ -1657,8 +1657,8 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
               <button class="result-view-tab" id="blockModeParagraph" onclick="setBlockMode('paragraph')">Odstavců</button>
             </div>
             <span style="font-size:11px;color:var(--text-dim);margin-left:4px;">Přetáhni bloky pro přeuspořádání</span>
-            <button class="btn sec sm" id="applyBlockOrder" style="margin-left:auto;">✓ Použít pořadí → Text</button>
-            <button class="btn danger sm" id="resetBlockOrder">↺ Reset</button>
+            <button class="btn sec sm" id="applyBlockOrder" style="margin-left:auto;" title="Přepnout na Text — změny jsou průběžně ukládány">← Zpět na Text</button>
+            <button class="btn danger sm" id="resetBlockOrder" title="Vrátit bloky i text na stav těsně po merge">↺ Reset na merge</button>
           </div>
           <div class="block-list" id="blockList"></div>
         </div>
@@ -3139,6 +3139,7 @@ document.getElementById('runMergeBtn').addEventListener('click', async ()=>{
     document.getElementById('mergeProgress').classList.remove('active');
     document.getElementById('mergeResultSection').classList.add('active');
     document.getElementById('mergeResultText').value=merged;
+    blockOrigText = merged; // uložit pro Reset blok editoru
     const inL=orig.split('\n').length,outL=merged.split('\n').length;
     const inTok=data.usage?.input_tokens||0;
     const outTok=data.usage?.output_tokens||0;
@@ -4802,6 +4803,7 @@ document.getElementById('importAllDataFile').addEventListener('change', async e 
 // ================================================================
 let blockMode = 'heading'; // 'heading' | 'paragraph'
 let blockData = []; // [{raw, type, title, lines}]
+let blockOrigText = null; // text těsně po merge — pro Reset
 let dragSrcIdx = null;
 
 window.switchResultView = function(view) {
@@ -4827,7 +4829,6 @@ window.switchResultView = function(view) {
     rawBtn.classList.remove('active');
     blockBtn.classList.add('active');
     hint.textContent = 'Přetáhni bloky pro změnu pořadí';
-    blockOrigText = text; // uložit pro Reset
     parseAndRenderBlocks(text);
   }
 };
@@ -5005,25 +5006,30 @@ function setupDragDrop() {
 
       dragSrcIdx = null;
       renderBlockList();
+      // Okamžitě propsat do textarea — textarea je single source of truth
+      const sep = blockMode === 'heading' ? '\n' : '\n\n';
+      document.getElementById('mergeResultText').value = blockData.map(b => b.raw).join(sep);
     });
   });
 }
 
 // Apply block order back to raw text
 document.getElementById('applyBlockOrder').addEventListener('click', () => {
-  const separator = blockMode === 'heading' ? '\n' : '\n\n';
-  const result = blockData.map(b => b.raw).join(separator);
-  document.getElementById('mergeResultText').value = result;
+  // Textarea je už průběžně aktualizovaná po každém drag&drop
+  // Stačí přepnout na Text tab
   switchResultView('raw');
-  document.getElementById('resultViewHint').textContent = '✓ Pořadí aplikováno — zkontroluj a stáhni';
+  document.getElementById('resultViewHint').textContent = '✓ Změny z Bloků přeneseny do textu — můžeš stáhnout nebo uložit';
 });
 
 document.getElementById('resetBlockOrder').addEventListener('click', () => {
-  if (!blockOrigText) return;
-  // Obnovit textarea i bloky na původní stav
+  if (!blockOrigText) {
+    alert('Reset není dostupný — proveď nejdřív AI Merge.');
+    return;
+  }
+  if (!confirm('Resetovat bloky i text na stav po merge? Všechny ruční úpravy budou ztraceny.')) return;
   document.getElementById('mergeResultText').value = blockOrigText;
   parseAndRenderBlocks(blockOrigText);
-  document.getElementById('resultViewHint').textContent = 'Pořadí resetováno na původní stav';
+  document.getElementById('resultViewHint').textContent = '↺ Resetováno na stav po merge';
 });
 
 // Auto-switch to block view hint after merge
