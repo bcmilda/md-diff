@@ -500,6 +500,14 @@
   .merge-instr label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); font-weight: 700; display: block; margin-bottom: 8px; }
   .merge-instr textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; font-family: var(--md-mono); font-size: 12px; line-height: 1.5; outline: none; resize: vertical; min-height: 90px; }
   .merge-instr textarea:focus { border-color: var(--accent); }
+  .instr-slot-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font-size: 11px; color: var(--text-dim); cursor: pointer; display:flex;align-items:center;gap:4px;white-space:nowrap; }
+  .instr-slot-btn:hover { border-color: var(--accent); color: var(--text); }
+  .instr-slot-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .instr-slot-name { outline: none; background: transparent; border: none; color: inherit; font: inherit; min-width: 20px; max-width: 100px; cursor: text; }
+  .instr-slot-add { background: transparent; border: 1px dashed var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; color: var(--text-dim); cursor: pointer; }
+  .instr-slot-add:hover { border-color: var(--accent); color: var(--accent); }
+  .file-pick-lbl { cursor: pointer; font-size: 11px !important; }
+  .file-pick-lbl:hover { border-color: var(--accent); color: var(--accent); }
   .apikey-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 15px; }
   .apikey-row label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); font-weight: 700; white-space: nowrap; }
   .apikey-row input { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; font-family: var(--md-mono); font-size: 12px; outline: none; }
@@ -1137,13 +1145,13 @@
     <span class="sep">│</span>
     <div class="file-input-group old-group">
       <span class="file-group-label old-label">STARÉ</span>
-      <input type="file" id="oldFile" accept=".md,.txt,.markdown" class="file-inp old-inp">
-      <button class="btn sec sm" id="oldFromStorage" title="Načíst STARÉ z úložiště" style="font-size:11px;padding:2px 7px;">📂</button>
+      <label class="btn sec sm file-pick-lbl" title="Vybrat soubor STARÉ">Procházet…<input type="file" id="oldFile" accept=".md,.txt,.markdown" style="display:none;"></label>
+      <button class="btn sec sm" id="oldFromStorage" title="Načíst STARÉ z úložiště / projektu" style="font-size:13px;padding:2px 8px;">📂</button>
     </div>
     <div class="file-input-group new-group">
       <span class="file-group-label new-label">NOVÉ</span>
-      <input type="file" id="newFile" accept=".md,.txt,.markdown" class="file-inp new-inp">
-      <button class="btn sec sm" id="newFromStorage" title="Načíst NOVÉ z úložiště" style="font-size:11px;padding:2px 7px;">📂</button>
+      <label class="btn sec sm file-pick-lbl" title="Vybrat soubor NOVÉ">Procházet…<input type="file" id="newFile" accept=".md,.txt,.markdown" style="display:none;"></label>
+      <button class="btn sec sm" id="newFromStorage" title="Načíst NOVÉ z úložiště / projektu" style="font-size:13px;padding:2px 8px;">📂</button>
     </div>
     <button class="btn sec sm" id="modeBtn">Režim: soubory</button>
     <button class="btn run-btn" id="runBtn">▶ Porovnat</button>
@@ -1575,14 +1583,15 @@
         </button>
       </div>
       <div class="merge-instr">
-        <label style="display:flex;align-items:center;justify-content:space-between;">
+        <label style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <span>Instrukce pro AI</span>
-          <span style="display:flex;gap:6px;align-items:center;">
+          <span style="display:flex;gap:5px;align-items:center;">
             <button class="btn sec sm" onclick="document.getElementById('instrFileInput').click()" title="Načíst instrukce ze souboru .md" style="font-size:11px;">📂 Načíst ze souboru</button>
-            <button class="btn sec sm" onclick="document.getElementById('mergeInstruction').value='';localStorage.removeItem(LS_MERGE_INSTR);" title="Vymazat instrukce" style="font-size:11px;">✕</button>
             <input type="file" id="instrFileInput" accept=".md,.txt" style="display:none;">
           </span>
         </label>
+        <!-- Přepínač sad pravidel -->
+        <div id="instrSlotsBar" style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;align-items:center;"></div>
         <textarea id="mergeInstruction" spellcheck="false" style="min-height:160px;resize:vertical;">Jsi asistent pro správu markdown dokumentů. Dostaneš ORIGINÁLNÍ soubor a PATCH s aktualizacemi ze session.
 
 Tvůj úkol:
@@ -1902,6 +1911,105 @@ const LS_RULES_ORIG = 'mddiff_rules_orig';
 const LS_HISTORY = 'mddiff_history';
 const LS_PROG_RULES = 'mddiff_progress_rules';
 const LS_MERGE_INSTR = 'mddiff_merge_instruction';
+const LS_INSTR_SLOTS = 'mddiff_instr_slots'; // sady pravidel
+
+// ================================================================
+// INSTRUKCE — sady pravidel (v4.5)
+// ================================================================
+const DEFAULT_INSTR = `Jsi asistent pro správu markdown dokumentů. Dostaneš ORIGINÁLNÍ soubor a PATCH s aktualizacemi ze session.\n\nTvůj úkol:\n1. Aplikuj všechny změny z patche do originálu\n2. Zachovej strukturu, formátování a hierarchii originálu\n3. NIKDY nemaž existující záznamy pokud patch explicitně neřiká "SMAZAT" nebo "REMOVE"\n4. Nové položky z patche přidej na správné místo podle kontextu\n5. Pokud patch říká "PŘIDEJ" — pouze přidej, nic nemaž\n6. Pokud patch říká "NAHRAĎ" — nahraď konkrétní část, zbytek zachovej\n\nVrať POUZE obsah výsledného souboru bez komentářů.`;
+
+let instrSlots = [];    // [{name, text}]
+let instrActiveSlot = 0;
+
+function instrLoadSlots() {
+  try {
+    const s = localStorage.getItem(LS_INSTR_SLOTS);
+    if (s) {
+      instrSlots = JSON.parse(s);
+    } else {
+      // Migruj starý LS_MERGE_INSTR pokud existuje
+      const old = localStorage.getItem(LS_MERGE_INSTR) || DEFAULT_INSTR;
+      instrSlots = [{ name: 'Výchozí', text: old }, { name: 'Pravidla 2', text: '' }, { name: 'Pravidla 3', text: '' }];
+    }
+    if (!instrSlots.length) instrSlots = [{ name: 'Výchozí', text: DEFAULT_INSTR }];
+  } catch(e) { instrSlots = [{ name: 'Výchozí', text: DEFAULT_INSTR }]; }
+  instrActiveSlot = Math.min(instrActiveSlot, instrSlots.length - 1);
+}
+
+function instrSaveSlots() {
+  try { localStorage.setItem(LS_INSTR_SLOTS, JSON.stringify(instrSlots)); } catch(e) {}
+}
+
+function instrGetActive() { return instrSlots[instrActiveSlot] || instrSlots[0]; }
+
+function instrRenderSlots() {
+  const bar = document.getElementById('instrSlotsBar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  instrSlots.forEach((slot, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'instr-slot-btn' + (i === instrActiveSlot ? ' active' : '');
+    btn.title = 'Klikni pro přepnutí · Dvojklik na název pro přejmenování';
+    // Editable name span
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'instr-slot-name';
+    nameSpan.contentEditable = 'true';
+    nameSpan.textContent = slot.name;
+    nameSpan.addEventListener('click', e => e.stopPropagation());
+    nameSpan.addEventListener('blur', () => {
+      instrSlots[i].name = nameSpan.textContent.trim() || ('Pravidla ' + (i+1));
+      instrSaveSlots();
+      instrRenderSlots();
+    });
+    nameSpan.addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); nameSpan.blur(); } });
+    btn.appendChild(nameSpan);
+    // Delete button (pokud víc než 1 slot)
+    if (instrSlots.length > 1) {
+      const del = document.createElement('span');
+      del.textContent = '×';
+      del.style.cssText = 'font-size:12px;margin-left:2px;opacity:0.5;';
+      del.title = 'Smazat tuto sadu';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!confirm('Smazat sadu "' + slot.name + '"?')) return;
+        instrSlots.splice(i, 1);
+        instrActiveSlot = Math.min(instrActiveSlot, instrSlots.length - 1);
+        instrSaveSlots();
+        instrSyncToTextarea();
+        instrRenderSlots();
+      });
+      btn.appendChild(del);
+    }
+    btn.addEventListener('click', () => {
+      // Ulož aktuální obsah textarea do aktivního slotu
+      instrSlots[instrActiveSlot].text = document.getElementById('mergeInstruction').value;
+      instrActiveSlot = i;
+      instrSaveSlots();
+      instrSyncToTextarea();
+      instrRenderSlots();
+    });
+    bar.appendChild(btn);
+  });
+  // Tlačítko přidat slot
+  const add = document.createElement('button');
+  add.className = 'instr-slot-add';
+  add.textContent = '+ Přidat sadu';
+  add.addEventListener('click', () => {
+    instrSlots[instrActiveSlot].text = document.getElementById('mergeInstruction').value;
+    instrSlots.push({ name: 'Pravidla ' + (instrSlots.length + 1), text: '' });
+    instrActiveSlot = instrSlots.length - 1;
+    instrSaveSlots();
+    instrSyncToTextarea();
+    instrRenderSlots();
+  });
+  bar.appendChild(add);
+}
+
+function instrSyncToTextarea() {
+  const ta = document.getElementById('mergeInstruction');
+  if (ta) ta.value = instrGetActive().text || '';
+}
+
 
 const DEFAULT_PROG_RULES = [
   { color: '#6ee79a', name: 'Hotové',   regex: '^\\s*[-*]\\s*\\[x\\]' },
@@ -1932,6 +2040,18 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
       topbar.style.display = 'none';
       statsBar.classList.add('hidden');
       colHeaders.classList.add('hidden');
+      // Načti soubory z IndexedDB pokud jsou prázdné (přežití refreshe)
+      if (!explorerFiles.length) {
+        explorerDbGetAll().then(saved => {
+          if (saved && saved.length) {
+            explorerFiles = saved;
+            explorerShowLayout();
+            explorerUpdateFileList();
+            if (explorerActiveLeft === null) explorerShowFile('left', 0);
+            if (explorerActiveRight === null && explorerFiles.length > 1) explorerShowFile('right', 1);
+          }
+        }).catch(()=>{});
+      }
       const hasFiles = explorerFiles && explorerFiles.length > 0;
       document.getElementById('explorerEmpty').style.display = hasFiles ? 'none' : 'flex';
       document.getElementById('explorerPanels').style.display = hasFiles ? 'flex' : 'none';
@@ -2018,8 +2138,11 @@ document.getElementById('instrFileInput').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
   r.onload = ev => {
-    document.getElementById('mergeInstruction').value = ev.target.result;
-    try { localStorage.setItem(LS_MERGE_INSTR, ev.target.result); } catch(err) {}
+    const text = ev.target.result;
+    document.getElementById('mergeInstruction').value = text;
+    instrSlots[instrActiveSlot].text = text;
+    instrSaveSlots();
+    try { localStorage.setItem(LS_MERGE_INSTR, text); } catch(err) {}
   };
   r.readAsText(f);
   e.target.value = '';
@@ -2975,8 +3098,17 @@ document.getElementById('useNewAsMergePatch').addEventListener('click',()=>{
   document.getElementById('mergePatchStats').textContent=`${newText.split('\n').length} řádků`;
   updateTokEst();
 });
-(()=>{ const s=localStorage.getItem(LS_MERGE_INSTR); if(s)document.getElementById('mergeInstruction').value=s; })();
-document.getElementById('mergeInstruction').addEventListener('input',()=>{ try{localStorage.setItem(LS_MERGE_INSTR,document.getElementById('mergeInstruction').value);}catch(e){} });
+(()=>{
+  instrLoadSlots();
+  instrRenderSlots();
+  instrSyncToTextarea();
+})();
+document.getElementById('mergeInstruction').addEventListener('input', () => {
+  instrSlots[instrActiveSlot].text = document.getElementById('mergeInstruction').value;
+  instrSaveSlots();
+  // zpětná kompatibilita
+  try { localStorage.setItem(LS_MERGE_INSTR, document.getElementById('mergeInstruction').value); } catch(e) {}
+});
 
 document.getElementById('runMergeBtn').addEventListener('click', async ()=>{
   const apiKey=loadApiKey()||document.getElementById('apiKeyInput').value.trim();
@@ -3467,6 +3599,7 @@ function explorerLoadFiles(fileList) {
         }
         explorerFiles.push(newFile);
       }
+      explorerDbSave(newFile).catch(()=>{});
     });
     explorerFiles.sort((a, b) => (a.displayName||a.name).localeCompare(b.displayName||b.name));
     explorerShowLayout();
@@ -3496,6 +3629,7 @@ document.getElementById('explorerSearch').addEventListener('input', explorerUpda
 document.getElementById('explorerClearBtn').addEventListener('click', () => {
   if (!confirm('Vymazat všechny soubory z prohlížeče?')) return;
   explorerFiles = []; explorerActiveLeft = null; explorerActiveRight = null;
+  explorerDbClear().catch(()=>{});
   document.getElementById('explorerEmpty').style.display = 'flex';
   document.getElementById('explorerPanels').style.display = 'none';
 });
@@ -3776,7 +3910,7 @@ window.diffMulti = i => {
 // STORAGE (IndexedDB)
 // ================================================================
 const DB_NAME = 'MDDiffStorage';
-const DB_VERSION = 1;
+const DB_VERSION = 2;  // v4.5: přidán store 'explorer'
 let db = null;
 
 function openDB() {
@@ -3788,6 +3922,9 @@ function openDB() {
       if (!d.objectStoreNames.contains('files')) {
         const s = d.createObjectStore('files', { keyPath: 'id', autoIncrement: true });
         s.createIndex('type', 'type', { unique: false });
+      }
+      if (!d.objectStoreNames.contains('explorer')) {
+        d.createObjectStore('explorer', { keyPath: 'name' });
       }
     };
     req.onsuccess = e => { db = e.target.result; resolve(db); };
@@ -3943,6 +4080,48 @@ window.storageOpenInDiff = async function(id) {
   document.querySelector('.sidebar-tab[data-panel="diff"]').click();
   if (oldText && newText) runDiff(false);
 };
+
+// ================================================================
+// EXPLORER — IndexedDB persistence (v4.5)
+// ================================================================
+async function explorerDbSave(file) {
+  const d = await openDB();
+  return new Promise((res, rej) => {
+    const tx = d.transaction('explorer', 'readwrite');
+    tx.objectStore('explorer').put({ name: file.displayName||file.name, text: file.text, size: file.size, path: file.path||file.name, displayName: file.displayName||null });
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+
+async function explorerDbDelete(name) {
+  const d = await openDB();
+  return new Promise((res, rej) => {
+    const tx = d.transaction('explorer', 'readwrite');
+    tx.objectStore('explorer').delete(name);
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+
+async function explorerDbGetAll() {
+  const d = await openDB();
+  return new Promise((res, rej) => {
+    const req = d.transaction('explorer','readonly').objectStore('explorer').getAll();
+    req.onsuccess = e => res(e.target.result || []);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+
+async function explorerDbClear() {
+  const d = await openDB();
+  return new Promise((res, rej) => {
+    const tx = d.transaction('explorer', 'readwrite');
+    tx.objectStore('explorer').clear();
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e.target.error);
+  });
+}
 
 async function saveToStorageDB(name, content, type, origContent, origName, note) {
   const id = await dbAdd({ name, content, type, origContent: origContent||null, origName: origName||null, note: note||'', ts: Date.now() });
@@ -4522,6 +4701,8 @@ async function exportAllData() {
     apiKey: loadApiKey(),
     rulesText: localStorage.getItem(LS_RULES_TEXT) || '',
     mergeInstruction: localStorage.getItem(LS_MERGE_INSTR) || '',
+    instrSlots: instrSlots,
+    instrActiveSlot: instrActiveSlot,
   };
   // Also export IndexedDB storage
   try {
@@ -4557,6 +4738,7 @@ async function importAllData(file) {
   if (backup.apiKey) localStorage.setItem(LS_API_KEY, backup.apiKey);
   if (backup.rulesText) localStorage.setItem(LS_RULES_TEXT, backup.rulesText);
   if (backup.mergeInstruction) localStorage.setItem(LS_MERGE_INSTR, backup.mergeInstruction);
+  if (backup.instrSlots) { instrSlots = backup.instrSlots; instrActiveSlot = backup.instrActiveSlot || 0; instrSaveSlots(); instrRenderSlots(); instrSyncToTextarea(); }
 
   // Restore IndexedDB
   if (backup.storage?.length) {
@@ -5347,7 +5529,7 @@ async function renderPickerProjects() {
         const item = document.createElement('div');
         item.className = 'picker-item';
         item.innerHTML = '<span class="pi-icon">'+ft.icon+'</span><span class="pi-name">'+esc(f.name)+'</span><span class="pi-type '+ft.css+'">'+ft.label+'</span><span class="pi-meta">'+lines+' r</span>';
-        item.addEventListener('click', () => applyPickedFile(f.name, f.content));
+        item.addEventListener('click', () => applyPickedFile(f.name, f.content, f.note||''));
         body.appendChild(item);
       });
     }
