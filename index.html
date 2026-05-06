@@ -1133,15 +1133,17 @@
 
   <!-- TOPBAR -->
   <div class="topbar" id="topbar">
-    <h1><span class="dot"></span>MD Diff <span style="color:var(--accent);font-size:11px;font-weight:600;letter-spacing:0.3px;">v4.4</span></h1>
+    <h1><span class="dot"></span>MD Diff <span style="color:var(--accent);font-size:11px;font-weight:600;letter-spacing:0.3px;">v4.5</span></h1>
     <span class="sep">│</span>
     <div class="file-input-group old-group">
       <span class="file-group-label old-label">STARÉ</span>
       <input type="file" id="oldFile" accept=".md,.txt,.markdown" class="file-inp old-inp">
+      <button class="btn sec sm" id="oldFromStorage" title="Načíst STARÉ z úložiště" style="font-size:11px;padding:2px 7px;">📂</button>
     </div>
     <div class="file-input-group new-group">
       <span class="file-group-label new-label">NOVÉ</span>
       <input type="file" id="newFile" accept=".md,.txt,.markdown" class="file-inp new-inp">
+      <button class="btn sec sm" id="newFromStorage" title="Načíst NOVÉ z úložiště" style="font-size:11px;padding:2px 7px;">📂</button>
     </div>
     <button class="btn sec sm" id="modeBtn">Režim: soubory</button>
     <button class="btn run-btn" id="runBtn">▶ Porovnat</button>
@@ -1217,7 +1219,7 @@
     <!-- DIFF PANEL -->
     <div class="panel active" id="panel-diff">
 
-      <div id="contentModeBanner" style="display:none;background:var(--mod-bg);color:var(--mod-text);border:1px solid var(--mod-border);border-radius:6px;padding:8px 14px;margin-bottom:8px;font-size:13px;"></div>
+      <div id="contentModeBanner" style="display:none;background:var(--mod-bg);color:var(--mod-text);border:1px solid var(--mod-border);border-radius:6px;padding:8px 14px;margin:0 0 8px 0;font-size:13px;"></div>
       <div class="diff-wrap hidden" id="diffWrap">
         <div class="diff-col" id="oldCol"></div>
         <div class="diff-col" id="newCol"></div>
@@ -1573,7 +1575,14 @@
         </button>
       </div>
       <div class="merge-instr">
-        <label>Instrukce pro AI</label>
+        <label style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Instrukce pro AI</span>
+          <span style="display:flex;gap:6px;align-items:center;">
+            <button class="btn sec sm" onclick="document.getElementById('instrFileInput').click()" title="Načíst instrukce ze souboru .md" style="font-size:11px;">📂 Načíst ze souboru</button>
+            <button class="btn sec sm" onclick="document.getElementById('mergeInstruction').value='';localStorage.removeItem(LS_MERGE_INSTR);" title="Vymazat instrukce" style="font-size:11px;">✕</button>
+            <input type="file" id="instrFileInput" accept=".md,.txt" style="display:none;">
+          </span>
+        </label>
         <textarea id="mergeInstruction" spellcheck="false" style="min-height:160px;resize:vertical;">Jsi asistent pro správu markdown dokumentů. Dostaneš ORIGINÁLNÍ soubor a PATCH s aktualizacemi ze session.
 
 Tvůj úkol:
@@ -1971,18 +1980,51 @@ function setViewMode(mode) {
   document.getElementById('vRendered').classList.toggle('active', mode === 'rendered');
   document.getElementById('vRaw').classList.toggle('active', mode === 'raw');
   document.getElementById('vContent').classList.toggle('active', mode === 'content');
+  const banner = document.getElementById('contentModeBanner');
+  if (banner && mode !== 'content') banner.style.display = 'none';
   if (lastDiffResult) runDiff(true);
 }
 document.getElementById('vRendered').addEventListener('click', () => setViewMode('rendered'));
 document.getElementById('vRaw').addEventListener('click', () => setViewMode('raw'));
 document.getElementById('vContent').addEventListener('click', () => setViewMode('content'));
 
-// Normalizace textu pro porovnání obsahu (odstraní # prefixy, prázdné řádky)
+// Normalizace textu pro režim Obsah — odstraní # prefixy a prázdné řádky
 function normalizeMarkdown(lines) {
-  return lines
-    .map(l => l.replace(/^#{1,6}\s+/, '').trim())
-    .filter(l => l.length > 0);
+  return lines.map(l => l.replace(/^#{1,6}\s+/, '').trim()).filter(l => l.length > 0);
 }
+
+// ================================================================
+// STORAGE PICKER PRO DIFF (tlačítka 📂 u STARÉ / NOVÉ v topbaru)
+// ================================================================
+let diffPickerTarget = null; // 'diffOld' | 'diffNew'
+
+document.getElementById('oldFromStorage').addEventListener('click', () => openDiffStoragePicker('diffOld'));
+document.getElementById('newFromStorage').addEventListener('click', () => openDiffStoragePicker('diffNew'));
+
+async function openDiffStoragePicker(target) {
+  diffPickerTarget = target;
+  pickerTarget = target; // sdílíme picker modal
+  document.getElementById('pickerTitle').textContent =
+    target === 'diffOld' ? 'Načíst STARÉ z úložiště / projektu' : 'Načíst NOVÉ z úložiště / projektu';
+  document.getElementById('filePickerOverlay').classList.add('active');
+  await renderPickerStorage();
+  document.querySelectorAll('.picker-tab').forEach((b, i) => b.classList.toggle('active', i === 1));
+}
+
+// ================================================================
+// INSTRUKCE PRO AI — načtení ze souboru
+// ================================================================
+document.getElementById('instrFileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    document.getElementById('mergeInstruction').value = ev.target.result;
+    try { localStorage.setItem(LS_MERGE_INSTR, ev.target.result); } catch(err) {}
+  };
+  r.readAsText(f);
+  e.target.value = '';
+});
+
 
 // ================================================================
 // FILES
@@ -2618,16 +2660,16 @@ function runDiff(skipHistory) {
     const moves = detectMovesOn ? detectMoves(mappedOps) : { moveMapAI: new Map(), moveMapBI: new Map() };
     pairs = renderRawDiff(mappedOps, moves, oldCol, newCol);
     stats = computeStats(mappedOps, moves, pairs);
-    // Banner pokud raw shoda nízká ale obsah stejný
+    // Banner — porovnej s raw shodou
     const rawOps = myersDiff(aCmp, bCmp);
     const rawStats = computeStats(rawOps, { moveMapAI: new Map(), moveMapBI: new Map() }, null);
-    const contentBanner = document.getElementById('contentModeBanner');
-    if (contentBanner) {
-      if (stats.similarity >= 95 && rawStats.similarity < 50) {
-        contentBanner.textContent = '⚠️ Obsah je téměř identický — liší se pouze formátování (úrovně nadpisů, mezery)';
-        contentBanner.style.display = 'block';
+    const banner = document.getElementById('contentModeBanner');
+    if (banner) {
+      if (stats.similarity >= 90 && rawStats.similarity < 60) {
+        banner.textContent = '⚠️ Obsah je téměř identický (' + stats.similarity + '%) — liší se pouze formátování (úrovně nadpisů, mezery). Raw shoda: ' + rawStats.similarity + '%.';
+        banner.style.display = 'block';
       } else {
-        contentBanner.style.display = 'none';
+        banner.style.display = 'none';
       }
     }
   } else {
@@ -5318,25 +5360,44 @@ async function renderPickerStorage() {
   try {
     const a = [...(await dbGetAll('file')||[]), ...(await dbGetAll('patch')||[]), ...(await dbGetAll('result')||[])];
     if (!a.length) { body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);">Uloziste je prazdne.</div>'; return; }
-    const icons = {file:'F',patch:'P',result:'V'};
+    const icons = {file:'📄',patch:'🔧',result:'✅'};
     a.sort((x,y) => y.ts-x.ts).forEach(f => {
       const lines = f.content ? f.content.split('\n').length : 0;
       const item = document.createElement('div');
       item.className = 'picker-item';
-      item.innerHTML = '<span class="pi-icon">'+(icons[f.type]||'F')+'</span><span class="pi-name">'+esc(f.name)+'</span><span class="pi-meta">'+lines+' r</span>';
-      item.addEventListener('click', () => applyPickedFile(f.name, f.content));
+      item.innerHTML = '<span class="pi-icon">'+(icons[f.type]||'F')+'</span>'
+        + '<span class="pi-name">'+esc(f.name)+'</span>'
+        + (f.note ? '<span class="pi-meta" style="color:var(--mod-text);font-style:italic;">'+esc(f.note)+'</span>' : '')
+        + '<span class="pi-meta">'+lines+' r</span>';
+      item.addEventListener('click', () => applyPickedFile(f.name, f.content, f.note||''));
       body.appendChild(item);
     });
   } catch(e) { body.innerHTML = '<div style="padding:20px;color:var(--del-text);">Chyba: '+e.message+'</div>'; }
 }
 
-function applyPickedFile(name, content) {
+function applyPickedFile(name, content, note) {
   if (!content) { alert('Soubor nema obsah.'); return; }
+  // Diff targets (přidány v4.5)
+  if (pickerTarget === 'diffOld') {
+    oldText = content;
+    oldFileName = name + (note ? '  —  ' + note : '');
+    document.getElementById('filePickerOverlay').classList.remove('active');
+    if (newText) runDiff(false);
+    return;
+  }
+  if (pickerTarget === 'diffNew') {
+    newText = content;
+    newFileName = name + (note ? '  —  ' + note : '');
+    document.getElementById('filePickerOverlay').classList.remove('active');
+    if (oldText) runDiff(false);
+    return;
+  }
+  // Merge targets (orig / patch)
   const taId = pickerTarget==='orig' ? 'mergeOrigText' : 'mergePatchText';
   const nameId = pickerTarget==='orig' ? 'mergeOrigName' : 'mergePatchName';
   const statsId = pickerTarget==='orig' ? 'mergeOrigStats' : 'mergePatchStats';
   document.getElementById(taId).value = content;
-  document.getElementById(nameId).textContent = name;
+  document.getElementById(nameId).textContent = name + (note ? '  —  ' + note : '');
   document.getElementById(statsId).textContent = content.split('\n').length + ' radku, ~' + Math.ceil(content.length/4) + ' tokenu';
   if (typeof updateTokEst === 'function') updateTokEst();
   document.getElementById('filePickerOverlay').classList.remove('active');
