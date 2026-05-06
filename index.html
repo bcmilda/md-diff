@@ -4841,6 +4841,7 @@ window.switchResultView = function(view) {
     rawBtn.classList.remove('active');
     blockBtn.classList.add('active');
     hint.textContent = 'Přetáhni bloky pro změnu pořadí';
+    blockOrigText = text; // uložit pro Reset
     parseAndRenderBlocks(text);
   }
 };
@@ -5032,8 +5033,11 @@ document.getElementById('applyBlockOrder').addEventListener('click', () => {
 });
 
 document.getElementById('resetBlockOrder').addEventListener('click', () => {
-  const text = document.getElementById('mergeResultText').value;
-  parseAndRenderBlocks(text);
+  if (!blockOrigText) return;
+  // Obnovit textarea i bloky na původní stav
+  document.getElementById('mergeResultText').value = blockOrigText;
+  parseAndRenderBlocks(blockOrigText);
+  document.getElementById('resultViewHint').textContent = 'Pořadí resetováno na původní stav';
 });
 
 // Auto-switch to block view hint after merge
