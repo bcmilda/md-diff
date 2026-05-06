@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>MD Diff v4.4</title>
+<title>MD Diff v4.5</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   :root {
@@ -1150,6 +1150,7 @@
     <div class="view-toggle">
       <button id="vRendered" class="active">Rendered</button>
       <button id="vRaw">Raw</button>
+      <button id="vContent">Obsah</button>
     </div>
     <span class="sep">│</span>
     <label class="chk-label" title="Detekovat přesunuté bloky">
@@ -1216,6 +1217,7 @@
     <!-- DIFF PANEL -->
     <div class="panel active" id="panel-diff">
 
+      <div id="contentModeBanner" style="display:none;background:var(--mod-bg);color:var(--mod-text);border:1px solid var(--mod-border);border-radius:6px;padding:8px 14px;margin-bottom:8px;font-size:13px;"></div>
       <div class="diff-wrap hidden" id="diffWrap">
         <div class="diff-col" id="oldCol"></div>
         <div class="diff-col" id="newCol"></div>
@@ -1962,20 +1964,25 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
 });
 
 // ================================================================
-// VIEW MODE TOGGLE (Rendered / Raw)
+// VIEW MODE TOGGLE (Rendered / Raw / Obsah)
 // ================================================================
-document.getElementById('vRendered').addEventListener('click', () => {
-  viewMode = 'rendered';
-  document.getElementById('vRendered').classList.add('active');
-  document.getElementById('vRaw').classList.remove('active');
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById('vRendered').classList.toggle('active', mode === 'rendered');
+  document.getElementById('vRaw').classList.toggle('active', mode === 'raw');
+  document.getElementById('vContent').classList.toggle('active', mode === 'content');
   if (lastDiffResult) runDiff(true);
-});
-document.getElementById('vRaw').addEventListener('click', () => {
-  viewMode = 'raw';
-  document.getElementById('vRaw').classList.add('active');
-  document.getElementById('vRendered').classList.remove('active');
-  if (lastDiffResult) runDiff(true);
-});
+}
+document.getElementById('vRendered').addEventListener('click', () => setViewMode('rendered'));
+document.getElementById('vRaw').addEventListener('click', () => setViewMode('raw'));
+document.getElementById('vContent').addEventListener('click', () => setViewMode('content'));
+
+// Normalizace textu pro porovnání obsahu (odstraní # prefixy, prázdné řádky)
+function normalizeMarkdown(lines) {
+  return lines
+    .map(l => l.replace(/^#{1,6}\s+/, '').trim())
+    .filter(l => l.length > 0);
+}
 
 // ================================================================
 // FILES
@@ -2598,6 +2605,31 @@ function runDiff(skipHistory) {
     stats.equal = pairs.filter(p=>p.status==='equal').length;
     const total = stats.added + stats.removed + stats.modified + stats.moved + stats.equal;
     stats.similarity = total === 0 ? 100 : Math.round(stats.equal / total * 1000) / 10;
+  } else if (viewMode === 'content') {
+    // Porovnání obsahu — normalizuje markdown (odstraní # prefixy, prázdné řádky)
+    const aNorm = normalizeMarkdown(a);
+    const bNorm = normalizeMarkdown(b);
+    const ops = myersDiff(aNorm, bNorm);
+    const mappedOps = ops.map(o => {
+      if (o.type==='equal') return {...o, a:aNorm[o.ai], b:bNorm[o.bi]};
+      if (o.type==='del') return {...o, a:aNorm[o.ai]};
+      return {...o, b:bNorm[o.bi]};
+    });
+    const moves = detectMovesOn ? detectMoves(mappedOps) : { moveMapAI: new Map(), moveMapBI: new Map() };
+    pairs = renderRawDiff(mappedOps, moves, oldCol, newCol);
+    stats = computeStats(mappedOps, moves, pairs);
+    // Banner pokud raw shoda nízká ale obsah stejný
+    const rawOps = myersDiff(aCmp, bCmp);
+    const rawStats = computeStats(rawOps, { moveMapAI: new Map(), moveMapBI: new Map() }, null);
+    const contentBanner = document.getElementById('contentModeBanner');
+    if (contentBanner) {
+      if (stats.similarity >= 95 && rawStats.similarity < 50) {
+        contentBanner.textContent = '⚠️ Obsah je téměř identický — liší se pouze formátování (úrovně nadpisů, mezery)';
+        contentBanner.style.display = 'block';
+      } else {
+        contentBanner.style.display = 'none';
+      }
+    }
   } else {
     const ops = myersDiff(aCmp, bCmp);
     const mappedOps = ops.map(o => {
