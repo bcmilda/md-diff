@@ -1646,6 +1646,10 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
         <!-- RAW textarea -->
         <div id="resultRawView">
           <textarea id="mergeResultText" style="width:100%;min-height:220px;resize:vertical;border:1px solid var(--border);border-radius:5px;padding:12px;font-family:var(--md-mono);font-size:12px;line-height:1.6;background:var(--bg-card);color:var(--text);outline:none;" spellcheck="false"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn sec sm" id="saveResultFromTextarea" style="font-size:12px;">💾 Uložit do Úložiště</button>
+            <button class="btn sec sm" id="downloadResultFromTextarea" style="font-size:12px;">⬇ Stáhnout</button>
+          </div>
         </div>
 
         <!-- BLOCK EDITOR -->
@@ -4183,6 +4187,24 @@ document.getElementById('saveToStorage').addEventListener('click', async () => {
   const note = prompt('Poznámka k výsledku (např. "Session 7"):', '');
   await saveToStorageDB(name, content, 'result', origContent, origName, note || '');
   alert('✅ Uloženo do úložiště.');
+});
+
+// Tlačítka pod textarea — stejná funkce
+document.getElementById('saveResultFromTextarea').addEventListener('click', () => {
+  document.getElementById('saveToStorage').click();
+});
+
+document.getElementById('downloadResultFromTextarea').addEventListener('click', () => {
+  document.getElementById('mergeDownloadBtn').click();
+});
+
+// Live sync textarea → mini diff panel "Po merge" při ruční editaci
+document.getElementById('mergeResultText').addEventListener('input', () => {
+  const orig = document.getElementById('mergeOrigText').value;
+  const merged = document.getElementById('mergeResultText').value;
+  if (document.getElementById('mergeShowDiff').checked && orig && merged) {
+    renderMiniDiff(orig, merged);
+  }
 });
 
 // Export/Import all
