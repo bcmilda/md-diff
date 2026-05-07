@@ -1646,9 +1646,10 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
         <!-- RAW textarea -->
         <div id="resultRawView">
           <textarea id="mergeResultText" style="width:100%;min-height:220px;resize:vertical;border:1px solid var(--border);border-radius:5px;padding:12px;font-family:var(--md-mono);font-size:12px;line-height:1.6;background:var(--bg-card);color:var(--text);outline:none;" spellcheck="false"></textarea>
-          <div style="display:flex;gap:8px;margin-top:8px;">
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
             <button class="btn sec sm" id="saveResultFromTextarea" style="font-size:12px;">💾 Uložit do Úložiště</button>
             <button class="btn sec sm" id="downloadResultFromTextarea" style="font-size:12px;">⬇ Stáhnout</button>
+            <button class="btn sec sm" id="syncScrollToggle" title="Synchronizovat scroll s diff panelem" style="font-size:12px;margin-left:auto;">🔗 Sync scroll</button>
           </div>
         </div>
 
@@ -4185,6 +4186,7 @@ document.getElementById('saveToStorage').addEventListener('click', async () => {
   const origContent = document.getElementById('mergeOrigText').value;
   const name = (origName !== '—' ? origName.replace(/\.md$/i,'') : 'merged') + '_merged_' + new Date().toISOString().slice(0,10) + '.md';
   const note = prompt('Poznámka k výsledku (např. "Session 7"):', '');
+  if (note === null) return; // uživatel klikl Zrušit
   await saveToStorageDB(name, content, 'result', origContent, origName, note || '');
   alert('✅ Uloženo do úložiště.');
 });
@@ -4195,7 +4197,26 @@ document.getElementById('saveResultFromTextarea').addEventListener('click', () =
 });
 
 document.getElementById('downloadResultFromTextarea').addEventListener('click', () => {
-  document.getElementById('mergeDownloadBtn').click();
+  document.getElementById('downloadMerged').click();
+});
+
+// Sync scroll sponka — textarea ↔ merge diff panel
+let resultScrollSync = false;
+document.getElementById('syncScrollToggle').addEventListener('click', function() {
+  resultScrollSync = !resultScrollSync;
+  this.classList.toggle('active', resultScrollSync);
+  this.textContent = resultScrollSync ? '🔗 Sync ON' : '🔗 Sync scroll';
+  this.style.borderColor = resultScrollSync ? 'var(--accent)' : '';
+  this.style.color = resultScrollSync ? 'var(--accent)' : '';
+});
+
+document.getElementById('mergeResultText').addEventListener('scroll', function() {
+  if (!resultScrollSync) return;
+  const ta = this;
+  const panel = document.getElementById('mergeNewCol');
+  if (!panel) return;
+  const ratio = ta.scrollTop / (ta.scrollHeight - ta.clientHeight || 1);
+  panel.scrollTop = ratio * (panel.scrollHeight - panel.clientHeight);
 });
 
 // Live sync textarea → mini diff panel "Po merge" při ruční editaci
@@ -4711,28 +4732,7 @@ function bindHistoryClicks(list, items) {
 
 // Save metrics snapshot with history entry
 const origSaveToHistory = saveToHistory;
-function saveToHistory() {
-  if (!lastDiffResult) return;
-  const items = loadHistory();
-  const metrics = {};
-  progressRules.forEach(r => {
-    if (!r.regex) return;
-    metrics[r.name] = {
-      old: countM(lastDiffResult.oldLines, r.regex),
-      new: countM(lastDiffResult.newLines, r.regex)
-    };
-  });
-  items.unshift({
-    ts: Date.now(),
-    oldName: oldFileName || 'OLD', newName: newFileName || 'NEW',
-    stats: lastDiffResult.stats,
-    oldLines: lastDiffResult.oldLines.length, newLines: lastDiffResult.newLines.length,
-    metrics,
-    oldText: oldText.length < 150000 ? oldText : null,
-    newText: newText.length < 150000 ? newText : null
-  });
-  saveHistory(items);
-}
+
 
 
 // ================================================================
@@ -5196,6 +5196,7 @@ async function renderProjectsNav() {
 window.selectProject = async function(pid) {
   currentProjectId = pid;
   currentSessionId = null;
+  try { localStorage.setItem('mddiff_last_project', pid); } catch(e) {}
   await renderProjectsNav();
   const p = await pdbGet('projects', pid);
   const sessions = await pdbGetByIndex('sessions', 'projectId', pid);
@@ -5218,6 +5219,7 @@ window.selectProject = async function(pid) {
 // ── Select session ──
 window.selectSession = async function(sid) {
   currentSessionId = sid;
+  try { localStorage.setItem('mddiff_last_session', sid); } catch(e) {}
   await renderProjectsNav();
   const s = await pdbGet('sessions', sid);
   const files = await pdbGetByIndex('pfiles', 'sessionId', sid);
@@ -5522,9 +5524,18 @@ window.saveMergeResultToProject = saveMergeResultToProject;
 async function initProjectsPanel() {
   await renderProjectsNav();
   const projects = await pdbGetAll('projects');
-  if (projects.length > 0) {
-    projects.sort((a,b) => b.ts - a.ts);
-    await selectProject(projects[0].id);
+  if (!projects.length) return;
+  projects.sort((a,b) => b.ts - a.ts);
+  // Obnovit poslední projekt + session z localStorage
+  const lastPid = parseInt(localStorage.getItem('mddiff_last_project'));
+  const lastSid = parseInt(localStorage.getItem('mddiff_last_session'));
+  const targetPid = (lastPid && projects.find(p => p.id === lastPid)) ? lastPid : projects[0].id;
+  await selectProject(targetPid);
+  if (lastSid) {
+    try {
+      const s = await pdbGet('sessions', lastSid);
+      if (s && s.projectId === targetPid) await selectSession(lastSid);
+    } catch(e) {}
   }
 }
 
@@ -5996,15 +6007,7 @@ window.showProgressMatch = function(ruleName, regex, color) {
 const _origRunDiff = runDiff;
 // Hook into saveToHistory to also suggest snapshot
 const _origSaveToHistory2 = saveToHistory;
-function saveToHistory() {
-  _origSaveToHistory2 && _origSaveToHistory2();
-  // Show subtle snapshot reminder
-  const info = document.getElementById('progressSnapshotInfo');
-  if (info) {
-    info.innerHTML = '<span style="color:var(--mod-text);">💡 Nový diff — nezapomeň uložit snapshot!</span>';
-    setTimeout(() => { if(info.textContent.includes('snapshot')) info.textContent = ''; }, 8000);
-  }
-}
+
 
 // Sync progOldLines/progNewLines when diff runs
 const _origRunDiffProg = runDiff;
