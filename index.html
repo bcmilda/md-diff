@@ -2992,39 +2992,25 @@ function saveHistory(items) {
   while(it.length>0) { try { localStorage.setItem(LS_HISTORY,JSON.stringify(it)); return; } catch(e){ it=it.slice(0,-5); } }
 }
 function saveToHistory() {
-  if (!lastDiffResult) return;
-  const items = loadHistory();
-  items.unshift({ ts:Date.now(), oldName:oldFileName||'OLD', newName:newFileName||'NEW', stats:lastDiffResult.stats, oldLines:lastDiffResult.oldLines.length, newLines:lastDiffResult.newLines.length, oldText:oldText.length<150000?oldText:null, newText:newText.length<150000?newText:null });
-  saveHistory(items);
-}
-function updateHistoryPanel() {
-  const list = document.getElementById('historyList');
-  const items = loadHistory();
-  if (!items.length) { list.innerHTML='<div class="hist-empty">Zatím žádná historie.</div>'; return; }
-  list.innerHTML = items.map((it,idx)=>{
-    const d = new Date(it.ts);
-    const t = d.toLocaleString('cs-CZ',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    const sim=it.stats?.similarity||0;
-    const sc = sim>=95?'var(--add-text)':sim>=75?'var(--mod-text)':'var(--del-text)';
-    return `<div class="hist-item" data-idx="${idx}">
-      <div class="hist-time">${t}</div>
-      <div class="hist-files">${esc(it.oldName)}<span class="arr">→</span>${esc(it.newName)}</div>
-      <div class="hist-stats"><span style="color:var(--add-text)">+${it.stats?.added||0}</span><span style="color:var(--del-text)">−${it.stats?.removed||0}</span><span style="color:var(--mod-text)">~${it.stats?.modified||0}</span></div>
-      <div class="hist-sim" style="color:${sc}">${sim}%</div>
-      <button class="btn danger sm" data-action="del" data-idx="${idx}">×</button>
-    </div>`;
-  }).join('');
-  list.querySelectorAll('.hist-item').forEach(item=>{
-    item.addEventListener('click', e=>{
-      if(e.target.dataset.action==='del'){e.stopPropagation();const it2=loadHistory();it2.splice(+e.target.dataset.idx,1);saveHistory(it2);updateHistoryPanel();return;}
-      const sel=loadHistory()[+item.dataset.idx];
-      if(!sel.oldText||!sel.newText){alert('Obsah nebyl uložen (moc velký).');return;}
-      oldText=sel.oldText;newText=sel.newText;oldFileName=sel.oldName;newFileName=sel.newName;
-      document.querySelector('.sidebar-tab[data-panel="diff"]').click();
-      runDiff(true);
+  try {
+    if (!lastDiffResult) return;
+    const items = loadHistory();
+    const oldT = (typeof oldText === 'string' && oldText.length < 150000) ? oldText : null;
+    const newT = (typeof newText === 'string' && newText.length < 150000) ? newText : null;
+    items.unshift({
+      ts: Date.now(),
+      oldName: oldFileName || 'OLD',
+      newName: newFileName || 'NEW',
+      stats: lastDiffResult.stats,
+      oldLines: lastDiffResult.oldLines ? lastDiffResult.oldLines.length : 0,
+      newLines: lastDiffResult.newLines ? lastDiffResult.newLines.length : 0,
+      oldText: oldT,
+      newText: newT
     });
-  });
+    saveHistory(items);
+  } catch(e) { console.warn('saveToHistory error:', e); }
 }
+// updateHistoryPanel — viz plná verze níže (v4.6)
 document.getElementById('clearHistoryBtn').addEventListener('click',()=>{ if(!confirm('Smazat historii?'))return; localStorage.removeItem(LS_HISTORY); updateHistoryPanel(); });
 document.getElementById('exportHistoryBtn').addEventListener('click',()=>{
   const a=document.createElement('a');
@@ -4029,6 +4015,7 @@ function storageItemHTML(item, type) {
     <div class="si-actions">
       <input class="storage-note-input" placeholder="Poznámka (Session 7…)" value="${esc(item.note||'')}"
         onchange="updateStorageNote(${item.id}, this.value)" title="Přidat poznámku">
+      <button class="btn sec sm" onclick="storageRename(${item.id}, '${type}', '${esc(item.name)}')" title="Přejmenovat">✏️</button>
       <button class="btn sec sm" onclick="storageOpenInDiff(${item.id})">→ Diff</button>
       <button class="btn sec sm" onclick="storageDownload(${item.id})">⬇</button>
       <button class="btn danger sm" onclick="storageDelete(${item.id}, '${type}')">×</button>
@@ -4085,6 +4072,25 @@ window.updateStorageNote = async function(id, note) {
 window.storageDelete = async function(id, type) {
   if (!confirm('Smazat soubor z úložiště?')) return;
   await dbDelete(id);
+  const tabs = { file: 'storageFileList', result: 'storageResultList', patch: 'storagePatchList' };
+  await renderStorageList(type, tabs[type]);
+};
+
+window.storageRename = async function(id, type, currentName) {
+  const newName = prompt('Přejmenovat soubor:', currentName);
+  if (!newName || newName.trim() === currentName) return;
+  const d = await openDB();
+  const item = await new Promise(res => {
+    const req = d.transaction('files','readonly').objectStore('files').get(id);
+    req.onsuccess = e => res(e.target.result);
+  });
+  if (!item) return;
+  item.name = newName.trim();
+  await new Promise(res => {
+    const tx = d.transaction('files','readwrite');
+    tx.objectStore('files').put(item);
+    tx.oncomplete = res;
+  });
   const tabs = { file: 'storageFileList', result: 'storageResultList', patch: 'storagePatchList' };
   await renderStorageList(type, tabs[type]);
 };
@@ -4210,14 +4216,40 @@ document.getElementById('syncScrollToggle').addEventListener('click', function()
   this.style.color = resultScrollSync ? 'var(--accent)' : '';
 });
 
+let _resultSyncLock = false;
 document.getElementById('mergeResultText').addEventListener('scroll', function() {
-  if (!resultScrollSync) return;
-  const ta = this;
+  if (!resultScrollSync || _resultSyncLock) return;
+  _resultSyncLock = true;
   const panel = document.getElementById('mergeNewCol');
-  if (!panel) return;
-  const ratio = ta.scrollTop / (ta.scrollHeight - ta.clientHeight || 1);
-  panel.scrollTop = ratio * (panel.scrollHeight - panel.clientHeight);
+  if (panel) {
+    const ratio = this.scrollTop / (this.scrollHeight - this.clientHeight || 1);
+    panel.scrollTop = ratio * (panel.scrollHeight - panel.clientHeight || 1);
+  }
+  requestAnimationFrame(() => { _resultSyncLock = false; });
 });
+
+// Sync i opačný směr: mergeNewCol → textarea
+(function() {
+  function syncPanelToTextarea() {
+    if (!resultScrollSync || _resultSyncLock) return;
+    _resultSyncLock = true;
+    const ta = document.getElementById('mergeResultText');
+    const panel = document.getElementById('mergeNewCol');
+    if (ta && panel) {
+      const ratio = panel.scrollTop / (panel.scrollHeight - panel.clientHeight || 1);
+      ta.scrollTop = ratio * (ta.scrollHeight - ta.clientHeight || 1);
+    }
+    requestAnimationFrame(() => { _resultSyncLock = false; });
+  }
+  // Attach after DOM ready (mergeNewCol se vytvoří až po merge)
+  document.addEventListener('click', function handler(e) {
+    const col = document.getElementById('mergeNewCol');
+    if (col && !col._syncAttached) {
+      col.addEventListener('scroll', syncPanelToTextarea);
+      col._syncAttached = true;
+    }
+  });
+})();
 
 // Live sync textarea → mini diff panel "Po merge" při ruční editaci
 document.getElementById('mergeResultText').addEventListener('input', () => {
@@ -5239,6 +5271,7 @@ window.selectSession = async function(sid) {
         📂 Přidat soubory
         <input type="file" multiple accept=".md,.txt,.markdown" onchange="addFilesToSession(${sid}, this)" style="display:none;">
       </label>
+      <button class="btn sec sm" onclick="addFromStorageToSession(${sid})" title="Přidat soubor z Úložiště do této session">💾 Z Úložiště</button>
       <select id="addFileTypeSelect" style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:11px;cursor:pointer;">
         <option value="current">📄 Aktuální</option>
         <option value="patch">🔧 Patch</option>
@@ -5290,6 +5323,16 @@ window.selectSession = async function(sid) {
 };
 
 // ── Add files to session ──
+// Přidat soubor z Úložiště do session
+window.addFromStorageToSession = async function(sid) {
+  // Otevřeme picker modal na záložce Úložiště
+  pickerTarget = 'projectSession_' + sid;
+  document.getElementById('pickerTitle').textContent = 'Vybrat soubor z Úložiště → Session';
+  document.getElementById('filePickerOverlay').classList.add('active');
+  await renderPickerStorage();
+  document.querySelectorAll('.picker-tab').forEach((b, i) => b.classList.toggle('active', i === 1));
+};
+
 window.addFilesToSession = async function(sid, input) {
   const fileType = document.getElementById('addFileTypeSelect')?.value || 'current';
   const session = await pdbGet('sessions', sid);
@@ -5627,6 +5670,29 @@ async function renderPickerStorage() {
 
 function applyPickedFile(name, content, note) {
   if (!content) { alert('Soubor nema obsah.'); return; }
+  // Projekt session target (v4.6)
+  if (pickerTarget && pickerTarget.startsWith('projectSession_')) {
+    const sid = parseInt(pickerTarget.split('_')[1]);
+    const fileType = document.getElementById('addFileTypeSelect')?.value || 'current';
+    document.getElementById('filePickerOverlay').classList.remove('active');
+    pdbGet('sessions', sid).then(session => {
+      if (!session) return;
+      const lines = content.split('\n').length;
+      const desc = note || (content.split('\n').find(l => l.trim()) || '').slice(0, 80);
+      pdbAdd('pfiles', {
+        sessionId: sid,
+        projectId: session.projectId,
+        name,
+        content,
+        fileType,
+        ts: Date.now(),
+        size: content.length,
+        lines,
+        desc
+      }).then(() => selectSession(sid));
+    });
+    return;
+  }
   // Diff targets (přidány v4.5)
   if (pickerTarget === 'diffOld') {
     oldText = content;
