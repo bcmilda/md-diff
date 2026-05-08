@@ -4381,31 +4381,102 @@ function saveSnapshots(snaps) {
   try { localStorage.setItem(LS_SNAPSHOTS, JSON.stringify(snaps.slice(0, 100))); } catch(e) {}
 }
 
+// Kanonické názvy hlavních souborů projektu (editovatelné)
+const LS_CANONICAL_FILES = 'mddiff_canonical_files';
+function getCanonicalFiles() {
+  try {
+    const s = localStorage.getItem(LS_CANONICAL_FILES);
+    if (s) return JSON.parse(s);
+  } catch(e) {}
+  return ['context.md','architecture.md','decisions.md','features.md','bugs.md','todo.md','formulas.md','CLAUDE.md','VERSIONING.md','SECURITY.md','GLOSSARY.md','explanations.md'];
+}
+function saveCanonicalFiles(arr) {
+  try { localStorage.setItem(LS_CANONICAL_FILES, JSON.stringify(arr)); } catch(e) {}
+}
+
 document.getElementById('saveProgressSnapshot').addEventListener('click', () => {
-  // Use prog-specific files if loaded, otherwise fall back to diff
   const ol = progOldLines || lastDiffResult?.oldLines || [];
   const nl = progNewLines || lastDiffResult?.newLines || ol;
   if (!ol.length) { alert('Nejdřív nahraj soubory v záložce Progres nebo proveď diff.'); return; }
-  const session = prompt('Název snapshotu (např. "Session 7"):', 'Session ' + (loadSnapshots().length + 1));
-  if (session === null) return;
-  const metrics = { lines: nl.length };
-  progressRules.forEach(r => {
-    if (!r.regex) return;
-    metrics[r.name] = { old: countM(ol, r.regex), new: countM(nl, r.regex) };
+
+  const canonFiles = getCanonicalFiles();
+  const sessionNum = 'Session ' + (loadSnapshots().length + 1);
+  // Zkus odhadnout soubor z aktuálního názvu
+  const curFile = (progNewFileName || newFileName || '').split('/').pop().split('\\').pop();
+  const guessIdx = canonFiles.findIndex(f => curFile.toLowerCase().includes(f.replace('.md','').toLowerCase()));
+
+  // Modal dialog
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:24px;min-width:380px;max-width:500px;">
+      <h3 style="margin:0 0 16px;font-size:15px;">📸 Uložit snapshot</h3>
+
+      <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Název session</label>
+      <input id="snapSessionInput" value="${sessionNum}" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;margin-bottom:14px;box-sizing:border-box;">
+
+      <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Hlavní soubor projektu</label>
+      <select id="snapFileSelect" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;margin-bottom:6px;box-sizing:border-box;">
+        ${canonFiles.map((f,i) => `<option value="${f}" ${i===guessIdx?'selected':''}>${f}</option>`).join('')}
+        <option value="__custom__">+ Jiný soubor…</option>
+      </select>
+      <div id="snapCustomFileWrap" style="display:none;margin-bottom:6px;">
+        <input id="snapCustomFile" placeholder="vlastni_soubor.md" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;box-sizing:border-box;">
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:16px;">
+        Aktuální soubor: <code style="color:var(--mod-text);">${curFile || '—'}</code>
+        ${guessIdx>=0?'<span style="color:var(--add-text);"> ✓ automaticky rozpoznán</span>':''}
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="snapCancelBtn" class="btn sec sm">Zrušit</button>
+        <button id="snapConfirmBtn" class="btn prim sm">📸 Uložit snapshot</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Custom file toggle
+  modal.querySelector('#snapFileSelect').addEventListener('change', function() {
+    modal.querySelector('#snapCustomFileWrap').style.display = this.value === '__custom__' ? 'block' : 'none';
   });
-  const snapOldFile = progOldFileName || oldFileName || 'staré';
-  const snapNewFile = progNewFileName || newFileName || 'nové';
-  const snap = {
-    ts: Date.now(), session: session.trim(),
-    oldFile: snapOldFile, newFile: snapNewFile,
-    stats: lastDiffResult?.stats || { similarity: 100, added: 0, removed: 0, modified: 0 },
-    metrics, oldLines: ol.length, newLines: nl.length
-  };
-  const snaps = loadSnapshots();
-  snaps.unshift(snap);
-  saveSnapshots(snaps);
-  document.getElementById('progressSnapshotInfo').textContent = '✓ Uloženo jako "' + snap.session + '"';
-  setTimeout(() => { document.getElementById('progressSnapshotInfo').textContent = ''; }, 3000);
+
+  modal.querySelector('#snapCancelBtn').addEventListener('click', () => document.body.removeChild(modal));
+
+  modal.querySelector('#snapConfirmBtn').addEventListener('click', () => {
+    const session = modal.querySelector('#snapSessionInput').value.trim();
+    if (!session) { alert('Zadej název session.'); return; }
+    let canonFile = modal.querySelector('#snapFileSelect').value;
+    if (canonFile === '__custom__') {
+      canonFile = modal.querySelector('#snapCustomFile').value.trim() || curFile || 'neznámý.md';
+      // Přidat do seznamu pokud nový
+      if (!canonFiles.includes(canonFile)) {
+        canonFiles.push(canonFile);
+        saveCanonicalFiles(canonFiles);
+      }
+    }
+    document.body.removeChild(modal);
+
+    const metrics = { lines: nl.length };
+    progressRules.forEach(r => {
+      if (!r.regex) return;
+      metrics[r.name] = { old: countM(ol, r.regex), new: countM(nl, r.regex) };
+    });
+    const snap = {
+      ts: Date.now(),
+      session: session,
+      canonFile: canonFile,         // kanonický název pro groupování
+      oldFile: progOldFileName || oldFileName || 'staré',
+      newFile: progNewFileName || newFileName || 'nové',
+      stats: lastDiffResult?.stats || { similarity: 100, added: 0, removed: 0, modified: 0 },
+      metrics, oldLines: ol.length, newLines: nl.length
+    };
+    const snaps = loadSnapshots();
+    snaps.unshift(snap);
+    saveSnapshots(snaps);
+    document.getElementById('progressSnapshotInfo').textContent = '✓ Uloženo: ' + session + ' → ' + canonFile;
+    setTimeout(() => { document.getElementById('progressSnapshotInfo').textContent = ''; }, 3000);
+    renderTrend();
+  });
 });
 
 document.getElementById('clearSnapshotsBtn').addEventListener('click', () => {
@@ -4512,12 +4583,13 @@ function renderTrendChart() {
     return;
   }
 
-  // ── Seskupit snapshoty podle souboru ──
+  // ── Seskupit snapshoty podle kanonického názvu souboru ──
   const fileGroups = {};
   allSnaps.forEach(s => {
-    const key = s.newFile || s.session || 'neznámý';
-    // Normalizace — odstraň cestu, ponechej jen název souboru
-    const fname = key.split('/').pop().split('\\').pop();
+    // canonFile = výběr uživatele při uložení snapshotu (spolehlivé)
+    // fallback na newFile pro staré snapshoty
+    const raw = s.canonFile || s.newFile || s.session || 'neznámý';
+    const fname = raw.split('/').pop().split('\\').pop();
     if (!fileGroups[fname]) fileGroups[fname] = [];
     fileGroups[fname].push(s);
   });
@@ -4659,7 +4731,7 @@ function renderTrendChart() {
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
         <span style="font-weight:700;color:var(--accent);font-size:11px;">📸 ${esc(s.session)}</span>
         <span style="font-size:10px;color:var(--text-dim);">${date}</span>
-        <span style="font-size:10px;color:var(--mod-text);margin-left:4px;">📄 ${esc(fname)}</span>
+        <span style="font-size:10px;color:var(--mod-text);margin-left:4px;">📄 ${esc(s.canonFile || fname)}</span>
         <span style="font-size:10px;color:var(--text-dim);margin-left:auto;">${s.oldLines}→${s.newLines} ř.</span>
         <button class="btn danger sm" onclick="deleteSnapshot(${idx})" style="padding:2px 7px;">×</button>
       </div>
