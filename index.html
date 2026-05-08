@@ -3062,17 +3062,20 @@ function updateTokEst(){
   const o=document.getElementById('mergeOrigText').value,p=document.getElementById('mergePatchText').value,ins=document.getElementById('mergeInstruction').value;
   if(!o&&!p){document.getElementById('mergeTokenInfo').style.display='none';return;}
   const fewshotTxt=buildFewshotPrompt?buildFewshotPrompt():'';
-  const inTok=Math.ceil((o.length+p.length+ins.length+fewshotTxt.length)/3.8);
-  const outTokEst=Math.ceil(o.length/3.8); // output ≈ orig size
+  // Dělitel 4 pro češtinu s diakritikou; +650 tok overhead (system prompt, API struktura, šablona)
+  const API_OVERHEAD = 650;
+  const inTokRaw=Math.ceil((o.length+p.length+ins.length+fewshotTxt.length)/4);
+  const inTok = inTokRaw + API_OVERHEAD;
+  const outTokEst=Math.ceil(o.length/4); // output ≈ velikost originálu
   const fewN=fewshotExamples?fewshotExamples.filter(e=>e.orig&&e.patch&&e.result).length:0;
   // claude-sonnet-4: $3/M input, $15/M output
   const costIn=(inTok/1000000)*3;
   const costOut=(outTokEst/1000000)*15;
   const costTotal=(costIn+costOut);
-  const costCZK=costTotal*23.5; // approx CZK rate
+  const costCZK=costTotal*23.5;
   const el=document.getElementById('mergeTokenInfo');
   el.innerHTML=`
-    <span title="Vstupní tokeny (prompt)">📥 ${inTok.toLocaleString('cs-CZ')} tok${fewN>0?' +'+fewN+' příkladů':''}</span>
+    <span title="Vstupní tokeny vč. API overhead (${API_OVERHEAD} tok)">📥 ${inTok.toLocaleString('cs-CZ')} tok${fewN>0?' +'+fewN+' příkladů':''}</span>
     <span title="Odhadované výstupní tokeny">📤 ~${outTokEst.toLocaleString('cs-CZ')} tok</span>
     <span title="Odhadovaná cena (Sonnet 4: $3/M in, $15/M out)" style="color:var(--mod-text);">💰 ~$${costTotal.toFixed(4)} (~${costCZK.toFixed(2)} Kč)</span>
   `;
@@ -4185,17 +4188,79 @@ document.getElementById('storageAddPatch').addEventListener('change', async e =>
 });
 
 // Save merge result to storage
-document.getElementById('saveToStorage').addEventListener('click', async () => {
+// Šablona názvu pro ukládání — {base} = základ bez _merged, {date} = datum
+const LS_SAVE_TEMPLATE = 'mddiff_save_template';
+function getSaveTemplate() {
+  return localStorage.getItem(LS_SAVE_TEMPLATE) || '{base}_{date}.md';
+}
+function buildSaveName(origName) {
+  // Odstraníme _merged_DATUM suffix pokud existuje (zabraňuje hromadění)
+  const base = (origName !== '—' ? origName : 'merged')
+    .replace(/\.md$/i, '')
+    .replace(/_merged_\d{4}-\d{2}-\d{2}(_\d+)?$/i, '')
+    .replace(/_merged$/i, '');
+  const date = new Date().toISOString().slice(0, 10);
+  return getSaveTemplate().replace('{base}', base).replace('{date}', date);
+}
+
+async function saveResultToStorage() {
   const content = document.getElementById('mergeResultText').value;
   if (!content) { alert('Žádný výsledek k uložení.'); return; }
   const origName = document.getElementById('mergeOrigName').textContent;
   const origContent = document.getElementById('mergeOrigText').value;
-  const name = (origName !== '—' ? origName.replace(/\.md$/i,'') : 'merged') + '_merged_' + new Date().toISOString().slice(0,10) + '.md';
-  const note = prompt('Poznámka k výsledku (např. "Session 7"):', '');
-  if (note === null) return; // uživatel klikl Zrušit
-  await saveToStorageDB(name, content, 'result', origContent, origName, note || '');
-  alert('✅ Uloženo do úložiště.');
-});
+
+  // Dialog — název + poznámka + šablona
+  const suggestedName = buildSaveName(origName);
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:24px;min-width:420px;max-width:560px;">
+      <h3 style="margin:0 0 16px;font-size:15px;">💾 Uložit do Úložiště</h3>
+      <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;">NÁZEV SOUBORU</label>
+      <input id="saveNameInput" value="${suggestedName}" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;">POZNÁMKA (volitelné)</label>
+      <input id="saveNoteInput" placeholder="např. Session 7, po merge s patchem…" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;">ŠABLONA NÁZVU <span style="opacity:0.6;">(použité proměnné: {base}, {date})</span></label>
+      <input id="saveTemplateInput" value="${getSaveTemplate()}" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:12px;font-family:var(--md-mono);margin-bottom:6px;box-sizing:border-box;">
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:16px;">Šablona se uloží pro příští uložení. {base} = název originálu bez _merged suffixu.</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="saveCancelBtn" class="btn sec sm">Zrušit</button>
+        <button id="saveConfirmBtn" class="btn prim sm">✅ Uložit</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Šablona → live preview názvu
+  const tmplInput = modal.querySelector('#saveTemplateInput');
+  const nameInput = modal.querySelector('#saveNameInput');
+  tmplInput.addEventListener('input', () => {
+    const base = (origName !== '—' ? origName : 'merged')
+      .replace(/\.md$/i,'').replace(/_merged_\d{4}-\d{2}-\d{2}(_\d+)?$/i,'').replace(/_merged$/i,'');
+    const date = new Date().toISOString().slice(0,10);
+    nameInput.value = tmplInput.value.replace('{base}', base).replace('{date}', date);
+  });
+
+  await new Promise(resolve => {
+    modal.querySelector('#saveCancelBtn').addEventListener('click', () => { document.body.removeChild(modal); resolve(null); });
+    modal.querySelector('#saveConfirmBtn').addEventListener('click', async () => {
+      const finalName = nameInput.value.trim() || suggestedName;
+      const note = modal.querySelector('#saveNoteInput').value.trim();
+      const tmpl = tmplInput.value.trim();
+      if (tmpl) { try { localStorage.setItem(LS_SAVE_TEMPLATE, tmpl); } catch(e) {} }
+      document.body.removeChild(modal);
+      await saveToStorageDB(finalName, content, 'result', origContent, origName, note);
+      // Krátké vizuální potvrzení
+      const btn = document.getElementById('saveToStorage');
+      const orig2 = btn.textContent;
+      btn.textContent = '✅ Uloženo!';
+      btn.disabled = true;
+      setTimeout(() => { btn.textContent = orig2; btn.disabled = false; }, 2000);
+      resolve(true);
+    });
+  });
+}
+
+document.getElementById('saveToStorage').addEventListener('click', saveResultToStorage);
 
 // Tlačítka pod textarea — stejná funkce
 document.getElementById('saveResultFromTextarea').addEventListener('click', () => {
@@ -5565,11 +5630,17 @@ window.saveMergeResultToProject = saveMergeResultToProject;
 
 // ── Initialize ──
 async function initProjectsPanel() {
+  // Skrýt detail panelu dokud se nenačte správná session (eliminuje blikání)
+  const detail = document.getElementById('projectDetail');
+  if (detail) detail.style.visibility = 'hidden';
+
   await renderProjectsNav();
   const projects = await pdbGetAll('projects');
-  if (!projects.length) return;
+  if (!projects.length) {
+    if (detail) detail.style.visibility = 'visible';
+    return;
+  }
   projects.sort((a,b) => b.ts - a.ts);
-  // Obnovit poslední projekt + session z localStorage
   const lastPid = parseInt(localStorage.getItem('mddiff_last_project'));
   const lastSid = parseInt(localStorage.getItem('mddiff_last_session'));
   const targetPid = (lastPid && projects.find(p => p.id === lastPid)) ? lastPid : projects[0].id;
@@ -5580,6 +5651,8 @@ async function initProjectsPanel() {
       if (s && s.projectId === targetPid) await selectSession(lastSid);
     } catch(e) {}
   }
+  // Zobrazit až po načtení správné session
+  if (detail) detail.style.visibility = 'visible';
 }
 
 
