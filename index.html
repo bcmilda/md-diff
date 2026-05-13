@@ -1180,13 +1180,14 @@
     </label>
     <span class="sep">│</span>
     <button class="btn sec sm" id="legendToggleBtn">❓ Legenda</button>
-    <span class="sep">│</span>
-    <div id="fbAuthArea" style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-      <span id="fbSyncIndicator" style="font-size:10px;color:var(--text-dim);" title="Firebase sync stav">☁️</span>
-      <button class="btn sec sm" id="fbLoginBtn" style="font-size:11px;white-space:nowrap;">🔑 Přihlásit</button>
-      <span id="fbUserName" style="font-size:10px;color:var(--text-dim);display:none;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-      <button class="btn sec sm" id="fbLogoutBtn" style="font-size:11px;display:none;">Odhlásit</button>
-    </div>
+  </div>
+
+  <!-- Firebase Auth — pevná pozice vpravo dole, vždy viditelné -->
+  <div id="fbAuthArea" style="position:fixed;bottom:16px;right:16px;z-index:1000;display:flex;align-items:center;gap:6px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;box-shadow:0 2px 12px rgba(0,0,0,0.4);">
+    <span id="fbSyncIndicator" style="font-size:13px;" title="Firebase sync stav">☁️</span>
+    <button class="btn sec sm" id="fbLoginBtn" style="font-size:11px;white-space:nowrap;">🔑 Přihlásit</button>
+    <span id="fbUserName" style="font-size:10px;color:var(--text-dim);display:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <button class="btn sec sm" id="fbLogoutBtn" style="font-size:11px;display:none;">Odhlásit</button>
   </div>
 
   <!-- STATS -->
@@ -6643,9 +6644,21 @@ function fbShowLoggedOut() {
 document.getElementById('fbLoginBtn').addEventListener('click', async () => {
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
-    await fbAuth.signInWithPopup(provider);
+    // Redirect funguje na file:// i https://, popup pouze na https://
+    await fbAuth.signInWithRedirect(provider);
   } catch(e) {
     alert('Přihlášení selhalo: ' + e.message);
+  }
+});
+
+// Zpracovat výsledek přesměrování po návratu ze Google
+fbAuth.getRedirectResult().then(result => {
+  if (result && result.user) {
+    console.log('Google redirect login OK:', result.user.displayName);
+  }
+}).catch(e => {
+  if (e.code !== 'auth/no-auth-event') {
+    console.warn('Redirect result error:', e.message);
   }
 });
 
@@ -6826,9 +6839,26 @@ async function fbExportStorage() {
 }
 
 // ── Auto-upload při změnách (debounced) ──
-// Snapshoty
-const _origSaveSnapshots = window.saveSnapshots || saveSnapshots;
-window.fbUploadSnapshots = () => fbDebounce('snaps', () => fbUpload('snapshots', loadSnapshots()));
+
+// Helper — upload projektů
+async function fbSyncProjects() {
+  if (!fbUser) return;
+  const proj = await fbExportProjects();
+  if (proj) await fbUpload('projects', proj);
+}
+
+// Helper — upload storage
+async function fbSyncStorage() {
+  if (!fbUser) return;
+  try {
+    const d = await openDB();
+    const items = await new Promise(res => {
+      const req = d.transaction('files','readonly').objectStore('files').getAll();
+      req.onsuccess = e => res(e.target.result || []);
+    });
+    await fbUpload('storage', items);
+  } catch(e) { console.warn('fbSyncStorage error:', e); }
+}
 
 // Hook do saveSnapshots
 const __saveSnaps = saveSnapshots;
@@ -6850,6 +6880,55 @@ window.instrSaveSlots = function() {
   __instrSave();
   if (fbUser) fbDebounce('slots', () => fbUpload('instrslots', instrSlots));
 };
+
+// Hook do pdbAdd — projekty
+const __pdbAdd = pdbAdd;
+window.pdbAdd = async function(store, item) {
+  const result = await __pdbAdd(store, item);
+  if (fbUser) fbDebounce('projects', fbSyncProjects, 2000);
+  return result;
+};
+
+// Hook do pdbUpdate — projekty
+const __pdbUpdate = pdbUpdate;
+window.pdbUpdate = async function(store, item) {
+  const result = await __pdbUpdate(store, item);
+  if (fbUser) fbDebounce('projects', fbSyncProjects, 2000);
+  return result;
+};
+
+// Hook do pdbDelete — projekty
+const __pdbDelete = pdbDelete;
+window.pdbDelete = async function(store, id) {
+  const result = await __pdbDelete(store, id);
+  if (fbUser) fbDebounce('projects', fbSyncProjects, 2000);
+  return result;
+};
+
+// Hook do saveToStorageDB — storage soubory
+const __saveToStorageDB = saveToStorageDB;
+window.saveToStorageDB = async function(name, content, type, origContent, origName, note) {
+  const result = await __saveToStorageDB(name, content, type, origContent, origName, note);
+  if (fbUser) fbDebounce('storage', fbSyncStorage, 2000);
+  return result;
+};
+
+// Hook do dbDelete — storage mazání
+const __dbDelete = dbDelete;
+window.dbDelete = async function(id) {
+  const result = await __dbDelete(id);
+  if (fbUser) fbDebounce('storage', fbSyncStorage, 2000);
+  return result;
+};
+
+// Hook do storageRename
+const __storageRename = window.storageRename;
+if (__storageRename) {
+  window.storageRename = async function(id, type, currentName) {
+    await __storageRename(id, type, currentName);
+    if (fbUser) fbDebounce('storage', fbSyncStorage, 2000);
+  };
+}
 
 // Manuální sync tlačítko — přidáme do Progres → Trend
 window.fbManualSync = async function() {
