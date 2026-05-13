@@ -1180,14 +1180,13 @@
     </label>
     <span class="sep">│</span>
     <button class="btn sec sm" id="legendToggleBtn">❓ Legenda</button>
-  </div>
-
-  <!-- Firebase Auth — pevná pozice vpravo dole, vždy viditelné -->
-  <div id="fbAuthArea" style="position:fixed;bottom:16px;right:16px;z-index:1000;display:flex;align-items:center;gap:6px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;box-shadow:0 2px 12px rgba(0,0,0,0.4);">
-    <span id="fbSyncIndicator" style="font-size:13px;" title="Firebase sync stav">☁️</span>
-    <button class="btn sec sm" id="fbLoginBtn" style="font-size:11px;white-space:nowrap;">🔑 Přihlásit</button>
-    <span id="fbUserName" style="font-size:10px;color:var(--text-dim);display:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button class="btn sec sm" id="fbLogoutBtn" style="font-size:11px;display:none;">Odhlásit</button>
+    <span class="sep">│</span>
+    <div id="fbAuthArea" style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <span id="fbSyncIndicator" style="font-size:13px;" title="Firebase sync stav">☁️</span>
+      <button class="btn sec sm" id="fbLoginBtn" style="font-size:11px;white-space:nowrap;">🔑 Přihlásit</button>
+      <span id="fbUserName" style="font-size:10px;color:var(--text-dim);display:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button class="btn sec sm" id="fbLogoutBtn" style="font-size:11px;display:none;">Odhlásit</button>
+    </div>
   </div>
 
   <!-- STATS -->
