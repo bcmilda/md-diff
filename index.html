@@ -241,6 +241,20 @@
   .view-toggle button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .view-toggle button:hover:not(.active) { background: var(--bg-card); color: var(--text); }
 
+  /* Rainbow Rendered button */
+  #vRendered.active {
+    background: linear-gradient(135deg, rgba(79,142,247,0.15), rgba(110,231,154,0.1));
+    font-weight: 700;
+  }
+  #vRendered.active .r-R { color: #ff6b6b; }
+  #vRendered.active .r-e { color: #ff9f43; }
+  #vRendered.active .r-n { color: #ffd080; }
+  #vRendered.active .r-d { color: #6ee79a; }
+  #vRendered.active .r-e2 { color: #4fc3f7; }
+  #vRendered.active .r-r { color: #8899ff; }
+  #vRendered.active .r-e3 { color: #cc99ff; }
+  #vRendered.active .r-d2 { color: #ff80ab; }
+
   /* ====== CONTENT AREA ====== */
   .content-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; position: relative; }
 
@@ -1177,7 +1191,7 @@
     <button class="btn sec sm" id="swapBtn" title="Prohodit staré/nové">⇄</button>
     <span class="sep">│</span>
     <div class="view-toggle">
-      <button id="vRendered" class="active">Rendered</button>
+      <button id="vRendered" class="active"><span class="r-R">R</span><span class="r-e">e</span><span class="r-n">n</span><span class="r-d">d</span><span class="r-e2">e</span><span class="r-r">r</span><span class="r-e3">e</span><span class="r-d2">d</span></button>
       <button id="vRaw">Raw</button>
       <button id="vContent">Obsah</button>
     </div>
@@ -1965,26 +1979,6 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
 
 <script>
 // ================================================================
-// MD DIFF — INTERNAL CHANGELOG
-// ================================================================
-// v4.7 — 2026-05-14 (Session 3)
-//   [FEAT] Edit mode v Diff: panel ✏️ Editovat pod diff výsledkem
-//          - přepínání STARÉ/NOVÉ strany
-//          - textový editor s live úpravami
-//          - ▶ Porovnat — okamžité porovnání editované verze
-//          - 💾 Uložit — uložení do Úložiště s popisem/názvem
-//          - ⬇ Stáhnout — stažení jako .md soubor
-//          - Pole "Popis pro Úložiště" + editovatelné "Název souboru"
-//   [FIX]  col-hdr fname: odstraněn max-width+nowrap → název + poznámka
-//          se zobrazí na dvou řádcích, žádné ořezávání
-//          Poznámka ze Úložiště je nyní viditelná pod názvem souboru
-//          (oddělena separátorem "  —  ") jako italic řádek
-//   [FEAT] Tlačítko ✏️ Editovat se zobrazí v topbaru po prvním Porovnat
-// ================================================================
-// v4.6 — předchozí verze (Firebase sync, Projects panel, File Picker)
-// ================================================================
-
-// ================================================================
 // STATE
 // ================================================================
 let oldText = '', newText = '', oldFileName = '', newFileName = '';
@@ -2000,6 +1994,27 @@ const LS_HISTORY = 'mddiff_history';
 const LS_PROG_RULES = 'mddiff_progress_rules';
 const LS_MERGE_INSTR = 'mddiff_merge_instruction';
 const LS_INSTR_SLOTS = 'mddiff_instr_slots'; // sady pravidel
+
+// ================================================================
+// COL HEADER DISPLAY — globální helper (v4.7)
+// ================================================================
+function setColHeader(nameEl, noteEl, fullName) {
+  const sep = '  —  ';
+  const idx = fullName.indexOf(sep);
+  if (idx !== -1) {
+    nameEl.textContent = fullName.slice(0, idx);
+    noteEl.textContent = fullName.slice(idx + sep.length);
+    noteEl.style.display = '';
+  } else {
+    nameEl.textContent = fullName;
+    noteEl.textContent = '';
+    noteEl.style.display = 'none';
+  }
+}
+function updateColHeaderDisplay() {
+  setColHeader(document.getElementById('oldName'), document.getElementById('oldNote'), oldFileName || 'OLD');
+  setColHeader(document.getElementById('newName'), document.getElementById('newNote'), newFileName || 'NEW');
+}
 
 // ================================================================
 // INSTRUKCE — sady pravidel (v4.5)
@@ -2242,13 +2257,12 @@ document.getElementById('instrFileInput').addEventListener('change', e => {
 document.getElementById('oldFile').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   oldFileName = f.name;
-  new FileReader().onload = ev => { oldText = ev.target.result; };
-  (() => { const r = new FileReader(); r.onload = ev => { oldText = ev.target.result; }; r.readAsText(f); })();
+  (() => { const r = new FileReader(); r.onload = ev => { oldText = ev.target.result; updateColHeaderDisplay(); }; r.readAsText(f); })();
 });
 document.getElementById('newFile').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   newFileName = f.name;
-  (() => { const r = new FileReader(); r.onload = ev => { newText = ev.target.result; }; r.readAsText(f); })();
+  (() => { const r = new FileReader(); r.onload = ev => { newText = ev.target.result; updateColHeaderDisplay(); }; r.readAsText(f); })();
 });
 
 // ================================================================
@@ -2903,30 +2917,7 @@ function runDiff(skipHistory) {
   document.getElementById('pasteMode').classList.remove('active');
   document.getElementById('diffWrap').classList.remove('hidden');
   document.getElementById('colHeaders').classList.remove('hidden');
-  // Split name — note for display in col headers
-  function setColHeader(nameEl, noteEl, fullName) {
-    const sep = '  —  ';
-    const idx = fullName.indexOf(sep);
-    if (idx !== -1) {
-      nameEl.textContent = fullName.slice(0, idx);
-      noteEl.textContent = '📝 ' + fullName.slice(idx + sep.length);
-      noteEl.style.display = '';
-    } else {
-      nameEl.textContent = fullName;
-      noteEl.textContent = '';
-      noteEl.style.display = 'none';
-    }
-  }
-  setColHeader(
-    document.getElementById('oldName'),
-    document.getElementById('oldNote'),
-    oldFileName || 'OLD'
-  );
-  setColHeader(
-    document.getElementById('newName'),
-    document.getElementById('newNote'),
-    newFileName || 'NEW'
-  );
+  updateColHeaderDisplay();
 
   if (mode === 'paste') { mode = 'files'; document.getElementById('modeBtn').textContent = 'Režim: soubory'; }
 
@@ -3019,16 +3010,21 @@ async function diffEditSaveToStorage() {
   const noteEl = document.getElementById('diffEditNote');
   const nameEl = document.getElementById('diffEditSaveName');
   const content = ta.value;
+  if (!content.trim()) { alert('Editor je prázdný.'); return; }
   const note = noteEl.value.trim();
   const sep = '  —  ';
   const fname = diffEditSide === 'old' ? oldFileName : newFileName;
   const cleanName = fname.includes(sep) ? fname.slice(0, fname.indexOf(sep)) : fname;
   const saveName = (nameEl.value.trim() || cleanName || (diffEditSide === 'new' ? 'edited-new.md' : 'edited-old.md'));
+  const finalName = saveName.endsWith('.md') ? saveName : saveName + '.md';
   try {
-    await saveToStorageDB(saveName, content, 'edit', '', cleanName, note);
+    await saveToStorageDB(finalName, content, 'file', '', cleanName, note);
+    // Refresh storage list so item appears immediately
+    if (typeof renderStorageList === 'function') {
+      await renderStorageList('file', 'storageFileList');
+    }
     const unsaved = document.getElementById('diffEditUnsaved');
     if (unsaved) unsaved.style.display = 'none';
-    // Flash confirm
     const btn = document.querySelector('[onclick="diffEditSaveToStorage()"]');
     if (btn) { const orig = btn.textContent; btn.textContent = '✓ Uloženo!'; setTimeout(() => btn.textContent = orig, 1800); }
   } catch(e) {
@@ -6024,6 +6020,7 @@ function applyPickedFile(name, content, note) {
   if (pickerTarget === 'diffOld') {
     oldText = content;
     oldFileName = name + (note ? '  —  ' + note : '');
+    updateColHeaderDisplay();
     document.getElementById('filePickerOverlay').classList.remove('active');
     if (newText) runDiff(false);
     return;
@@ -6031,6 +6028,7 @@ function applyPickedFile(name, content, note) {
   if (pickerTarget === 'diffNew') {
     newText = content;
     newFileName = name + (note ? '  —  ' + note : '');
+    updateColHeaderDisplay();
     document.getElementById('filePickerOverlay').classList.remove('active');
     if (oldText) runDiff(false);
     return;
