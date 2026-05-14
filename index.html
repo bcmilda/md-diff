@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>MD Diff v4.6</title>
+<title>MD Diff v4.7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   :root {
@@ -205,20 +205,29 @@
   .col-headers { display: flex; background: var(--bg-alt); border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .col-headers.hidden { display: none; }
   .col-hdr {
-    flex: 1; padding: 7px 18px; font-size: 11px;
+    flex: 1; padding: 6px 18px; font-size: 11px;
     text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700;
-    border-right: 1px solid var(--border); display: flex; align-items: center; gap: 8px;
+    border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px;
+    min-height: 36px; justify-content: center;
   }
+  .col-hdr-row1 { display: flex; align-items: center; gap: 8px; }
   .col-hdr:last-child { border-right: none; }
   .col-hdr.old { background: rgba(46,13,13,0.5); color: var(--del-text); border-bottom: 2px solid var(--del-border); }
   .col-hdr.new { background: rgba(13,46,26,0.5); color: var(--add-text); border-bottom: 2px solid var(--add-border); }
   .col-hdr .fname {
-    font-family: var(--md-mono); font-size: 11px; font-weight: 400;
-    padding: 2px 8px; border-radius: 3px; max-width: 280px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--md-mono); font-size: 12px; font-weight: 400;
+    padding: 2px 8px; border-radius: 3px;
+    white-space: normal; word-break: break-all; line-height: 1.4;
   }
   .col-hdr.old .fname { background: var(--del-bg); color: var(--del-text); border: 1px solid var(--del-border); }
   .col-hdr.new .fname { background: var(--add-bg); color: var(--add-text); border: 1px solid var(--add-border); }
+  .col-hdr .fname-note {
+    font-family: var(--md-sans); font-size: 11px; font-weight: 400; font-style: italic;
+    padding: 1px 8px; border-radius: 3px; opacity: 0.85; text-transform: none; letter-spacing: 0;
+    white-space: normal; word-break: break-word; line-height: 1.4; display: none;
+  }
+  .col-hdr.old .fname-note { color: var(--del-text); }
+  .col-hdr.new .fname-note { color: var(--add-text); }
 
   /* ====== VIEW TOGGLE ====== */
   .view-toggle {
@@ -877,6 +886,7 @@
   /* Col headers */
   .col-hdr { font-size: 12px !important; letter-spacing: 0.5px; }
   .col-hdr .fname { font-size: 12px !important; padding: 2px 10px !important; }
+  .col-hdr .fname-note { font-size: 11px !important; }
 
   /* Buttons global */
   .btn { font-size: 12px; font-weight: 600; letter-spacing: 0.2px; }
@@ -1150,7 +1160,7 @@
 
   <!-- TOPBAR -->
   <div class="topbar" id="topbar">
-    <h1><span class="dot"></span>MD Diff <span style="color:var(--accent);font-size:11px;font-weight:600;letter-spacing:0.3px;">v4.6</span></h1>
+    <h1><span class="dot"></span>MD Diff <span style="color:var(--accent);font-size:11px;font-weight:600;letter-spacing:0.3px;">v4.7</span></h1>
     <span class="sep">│</span>
     <div class="file-input-group old-group">
       <span class="file-group-label old-label">STARÉ</span>
@@ -1180,6 +1190,7 @@
     </label>
     <span class="sep">│</span>
     <button class="btn sec sm" id="legendToggleBtn">❓ Legenda</button>
+    <button class="btn sec sm" id="diffEditToggleBtn" onclick="toggleDiffEdit()" title="Otevřít editor STARÉ/NOVÉ souboru" style="display:none;">✏️ Editovat</button>
     <span class="sep">│</span>
     <div id="fbAuthArea" style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
       <span id="fbSyncIndicator" style="font-size:13px;" title="Firebase sync stav">☁️</span>
@@ -1226,14 +1237,20 @@
   <!-- COL HEADERS -->
   <div class="col-headers hidden" id="colHeaders">
     <div class="col-hdr old">
-      <span style="font-size:16px;opacity:0.6;">−</span>
-      STARÉ
-      <span class="fname" id="oldName">—</span>
+      <div class="col-hdr-row1">
+        <span style="font-size:16px;opacity:0.6;">−</span>
+        STARÉ
+        <span class="fname" id="oldName">—</span>
+      </div>
+      <div class="fname-note" id="oldNote"></div>
     </div>
     <div class="col-hdr new">
-      <span style="font-size:16px;opacity:0.6;">+</span>
-      NOVÉ
-      <span class="fname" id="newName">—</span>
+      <div class="col-hdr-row1">
+        <span style="font-size:16px;opacity:0.6;">+</span>
+        NOVÉ
+        <span class="fname" id="newName">—</span>
+      </div>
+      <div class="fname-note" id="newNote"></div>
     </div>
   </div>
 
@@ -1283,6 +1300,35 @@
             <kbd style="background:var(--bg-card);border:1px solid var(--border);padding:1px 6px;border-radius:3px;font-family:var(--md-mono);font-size:10px;">Shift+P</kbd> předchozí
           </span>
         </div>
+      </div>
+
+      <!-- EDIT PANEL — editace NOVÉ nebo STARÉ, uložení do Úložiště / stažení -->
+      <div id="diffEditPanel" style="display:none;flex-shrink:0;border-top:2px solid var(--accent);background:var(--bg-alt);">
+        <!-- Edit bar header -->
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--accent);">✏️ Editor</span>
+          <span style="font-size:11px;color:var(--text-muted);">Edituješ:</span>
+          <button id="editSideOld" onclick="diffEditSetSide('old')" style="padding:3px 10px;font-size:11px;font-weight:600;border:1px solid var(--del-border);border-radius:4px;background:var(--del-bg);color:var(--del-text);cursor:pointer;">− STARÉ</button>
+          <button id="editSideNew" onclick="diffEditSetSide('new')" style="padding:3px 10px;font-size:11px;font-weight:600;border:2px solid var(--add-border);border-radius:4px;background:var(--add-bg);color:var(--add-text);cursor:pointer;box-shadow:0 0 0 1px var(--add-text);">+ NOVÉ ✓</button>
+          <span style="font-family:var(--md-mono);font-size:11px;color:var(--text-dim);margin-left:4px;" id="diffEditFileName">—</span>
+          <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+            <span id="diffEditUnsaved" style="font-size:10px;color:var(--mod-text);display:none;">● neuloženo</span>
+            <button class="btn sec sm" onclick="diffEditRefresh()" title="Znovu načíst z aktuálního diffu">↺ Obnovit</button>
+            <button class="btn sec sm" onclick="diffEditRunDiff()" title="Porovnat editovaný soubor se druhým">▶ Porovnat</button>
+            <button class="btn sm" onclick="diffEditSaveToStorage()" title="Uložit do Úložiště">💾 Uložit</button>
+            <button class="btn sec sm" onclick="diffEditDownload()" title="Stáhnout jako .md">⬇ Stáhnout</button>
+            <button onclick="toggleDiffEdit()" style="background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:2px 6px;" title="Zavřít editor">✕</button>
+          </div>
+        </div>
+        <!-- Note field for storage save -->
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid var(--border);background:var(--bg);">
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Popis pro Úložiště:</span>
+          <input id="diffEditNote" type="text" placeholder="Poznámka k verzi (Session 8, oprava…)" style="flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:5px 10px;font-size:12px;color:var(--text);outline:none;font-family:var(--md-sans);">
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Název souboru:</span>
+          <input id="diffEditSaveName" type="text" placeholder="název.md" style="width:200px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:5px 10px;font-size:12px;color:var(--text);outline:none;font-family:var(--md-mono);">
+        </div>
+        <!-- Textarea editor -->
+        <textarea id="diffEditTextarea" spellcheck="false" style="width:100%;height:280px;background:var(--bg);border:none;outline:none;padding:14px 18px;font-family:var(--md-mono);font-size:12.5px;line-height:1.65;color:var(--text);resize:vertical;"></textarea>
       </div>
     </div>
 
@@ -1918,6 +1964,26 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
 </div><!-- /main -->
 
 <script>
+// ================================================================
+// MD DIFF — INTERNAL CHANGELOG
+// ================================================================
+// v4.7 — 2026-05-14 (Session 3)
+//   [FEAT] Edit mode v Diff: panel ✏️ Editovat pod diff výsledkem
+//          - přepínání STARÉ/NOVÉ strany
+//          - textový editor s live úpravami
+//          - ▶ Porovnat — okamžité porovnání editované verze
+//          - 💾 Uložit — uložení do Úložiště s popisem/názvem
+//          - ⬇ Stáhnout — stažení jako .md soubor
+//          - Pole "Popis pro Úložiště" + editovatelné "Název souboru"
+//   [FIX]  col-hdr fname: odstraněn max-width+nowrap → název + poznámka
+//          se zobrazí na dvou řádcích, žádné ořezávání
+//          Poznámka ze Úložiště je nyní viditelná pod názvem souboru
+//          (oddělena separátorem "  —  ") jako italic řádek
+//   [FEAT] Tlačítko ✏️ Editovat se zobrazí v topbaru po prvním Porovnat
+// ================================================================
+// v4.6 — předchozí verze (Firebase sync, Projects panel, File Picker)
+// ================================================================
+
 // ================================================================
 // STATE
 // ================================================================
@@ -2837,20 +2903,153 @@ function runDiff(skipHistory) {
   document.getElementById('pasteMode').classList.remove('active');
   document.getElementById('diffWrap').classList.remove('hidden');
   document.getElementById('colHeaders').classList.remove('hidden');
-  document.getElementById('oldName').textContent = oldFileName || 'OLD';
-  document.getElementById('newName').textContent = newFileName || 'NEW';
+  // Split name — note for display in col headers
+  function setColHeader(nameEl, noteEl, fullName) {
+    const sep = '  —  ';
+    const idx = fullName.indexOf(sep);
+    if (idx !== -1) {
+      nameEl.textContent = fullName.slice(0, idx);
+      noteEl.textContent = '📝 ' + fullName.slice(idx + sep.length);
+      noteEl.style.display = '';
+    } else {
+      nameEl.textContent = fullName;
+      noteEl.textContent = '';
+      noteEl.style.display = 'none';
+    }
+  }
+  setColHeader(
+    document.getElementById('oldName'),
+    document.getElementById('oldNote'),
+    oldFileName || 'OLD'
+  );
+  setColHeader(
+    document.getElementById('newName'),
+    document.getElementById('newNote'),
+    newFileName || 'NEW'
+  );
 
   if (mode === 'paste') { mode = 'files'; document.getElementById('modeBtn').textContent = 'Režim: soubory'; }
 
   lastDiffResult = { oldLines: a, newLines: b, stats, oldFileName, newFileName };
   if (!skipHistory) saveToHistory();
+
+  // Show edit button now that we have content
+  document.getElementById('diffEditToggleBtn').style.display = '';
+  // If edit panel is open, refresh its content
+  if (document.getElementById('diffEditPanel').style.display !== 'none') {
+    diffEditRefresh();
+  }
 }
 
 document.getElementById('runBtn').addEventListener('click', () => runDiff(false));
 
 // ================================================================
-// AI RULES
+// DIFF EDIT MODE — v4.7
+// Editace STARÉ nebo NOVÉ souboru přímo v diff panelu
 // ================================================================
+let diffEditSide = 'new'; // 'old' | 'new'
+
+function toggleDiffEdit() {
+  const panel = document.getElementById('diffEditPanel');
+  const isOpen = panel.style.display !== 'none';
+  if (isOpen) {
+    panel.style.display = 'none';
+  } else {
+    panel.style.display = 'flex';
+    panel.style.flexDirection = 'column';
+    diffEditRefresh();
+  }
+}
+
+function diffEditSetSide(side) {
+  diffEditSide = side;
+  // Update button styles
+  const btnOld = document.getElementById('editSideOld');
+  const btnNew = document.getElementById('editSideNew');
+  if (side === 'old') {
+    btnOld.style.boxShadow = '0 0 0 1px var(--del-text)';
+    btnOld.style.border = '2px solid var(--del-border)';
+    btnNew.style.boxShadow = 'none';
+    btnNew.style.border = '1px solid var(--add-border)';
+    btnNew.textContent = '+ NOVÉ';
+    btnOld.textContent = '− STARÉ ✓';
+  } else {
+    btnNew.style.boxShadow = '0 0 0 1px var(--add-text)';
+    btnNew.style.border = '2px solid var(--add-border)';
+    btnOld.style.boxShadow = 'none';
+    btnOld.style.border = '1px solid var(--del-border)';
+    btnOld.textContent = '− STARÉ';
+    btnNew.textContent = '+ NOVÉ ✓';
+  }
+  diffEditRefresh();
+}
+
+function diffEditRefresh() {
+  const ta = document.getElementById('diffEditTextarea');
+  const fnEl = document.getElementById('diffEditFileName');
+  const nameInput = document.getElementById('diffEditSaveName');
+  const unsaved = document.getElementById('diffEditUnsaved');
+  const content = diffEditSide === 'old' ? oldText : newText;
+  const fname = diffEditSide === 'old' ? oldFileName : newFileName;
+  // Strip note from filename display
+  const sep = '  —  ';
+  const cleanName = fname.includes(sep) ? fname.slice(0, fname.indexOf(sep)) : fname;
+  ta.value = content;
+  fnEl.textContent = cleanName || (diffEditSide === 'old' ? 'STARÉ' : 'NOVÉ');
+  if (nameInput && !nameInput.value) nameInput.value = cleanName || '';
+  if (unsaved) unsaved.style.display = 'none';
+  // Watch for changes
+  ta.oninput = () => { if (unsaved) unsaved.style.display = ''; };
+}
+
+function diffEditRunDiff() {
+  const ta = document.getElementById('diffEditTextarea');
+  if (diffEditSide === 'new') {
+    newText = ta.value;
+    newFileName = document.getElementById('diffEditSaveName').value || newFileName;
+  } else {
+    oldText = ta.value;
+    oldFileName = document.getElementById('diffEditSaveName').value || oldFileName;
+  }
+  runDiff(false);
+}
+
+async function diffEditSaveToStorage() {
+  const ta = document.getElementById('diffEditTextarea');
+  const noteEl = document.getElementById('diffEditNote');
+  const nameEl = document.getElementById('diffEditSaveName');
+  const content = ta.value;
+  const note = noteEl.value.trim();
+  const sep = '  —  ';
+  const fname = diffEditSide === 'old' ? oldFileName : newFileName;
+  const cleanName = fname.includes(sep) ? fname.slice(0, fname.indexOf(sep)) : fname;
+  const saveName = (nameEl.value.trim() || cleanName || (diffEditSide === 'new' ? 'edited-new.md' : 'edited-old.md'));
+  try {
+    await saveToStorageDB(saveName, content, 'edit', '', cleanName, note);
+    const unsaved = document.getElementById('diffEditUnsaved');
+    if (unsaved) unsaved.style.display = 'none';
+    // Flash confirm
+    const btn = document.querySelector('[onclick="diffEditSaveToStorage()"]');
+    if (btn) { const orig = btn.textContent; btn.textContent = '✓ Uloženo!'; setTimeout(() => btn.textContent = orig, 1800); }
+  } catch(e) {
+    alert('Chyba při ukládání: ' + e.message);
+  }
+}
+
+function diffEditDownload() {
+  const ta = document.getElementById('diffEditTextarea');
+  const nameEl = document.getElementById('diffEditSaveName');
+  const sep = '  —  ';
+  const fname = diffEditSide === 'old' ? oldFileName : newFileName;
+  const cleanName = fname.includes(sep) ? fname.slice(0, fname.indexOf(sep)) : fname;
+  const saveName = nameEl.value.trim() || cleanName || 'edited.md';
+  const blob = new Blob([ta.value], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = saveName.endsWith('.md') ? saveName : saveName + '.md';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 function getRulesText() { return localStorage.getItem(LS_RULES_TEXT) || ''; }
 function setRulesStatus() {
   const el = document.getElementById('rulesStatus');
