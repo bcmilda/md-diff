@@ -2229,8 +2229,13 @@ async function openDiffStoragePicker(target) {
   document.getElementById('pickerTitle').textContent =
     target === 'diffOld' ? 'Načíst STARÉ z úložiště / projektu' : 'Načíst NOVÉ z úložiště / projektu';
   document.getElementById('filePickerOverlay').classList.add('active');
-  await renderPickerStorage();
-  document.querySelectorAll('.picker-tab').forEach((b, i) => b.classList.toggle('active', i === 1));
+  // Restore last active tab
+  document.querySelectorAll('.picker-tab').forEach(b =>
+    b.classList.toggle('active',
+      (pickerLastTab==='projects' && b.textContent.includes('Projekt')) ||
+      (pickerLastTab==='storage' && b.textContent.includes('lo'))));
+  if (pickerLastTab === 'projects') await renderPickerProjects();
+  else await renderPickerStorage();
 }
 
 // ================================================================
@@ -5916,8 +5921,13 @@ window.openFilePicker = async function(target) {
   document.getElementById('pickerTitle').textContent =
     target === 'orig' ? 'Vybrat originální soubor' : 'Vybrat patch soubor';
   document.getElementById('filePickerOverlay').classList.add('active');
-  await renderPickerProjects();
-  document.querySelectorAll('.picker-tab').forEach((b,i) => b.classList.toggle('active', i===0));
+  // Restore last active tab
+  document.querySelectorAll('.picker-tab').forEach(b =>
+    b.classList.toggle('active',
+      (pickerLastTab==='projects' && b.textContent.includes('Projekt')) ||
+      (pickerLastTab==='storage' && b.textContent.includes('lo'))));
+  if (pickerLastTab === 'projects') await renderPickerProjects();
+  else await renderPickerStorage();
 };
 
 window.closeFilePicker = function(e) {
@@ -5925,7 +5935,10 @@ window.closeFilePicker = function(e) {
     document.getElementById('filePickerOverlay').classList.remove('active');
 };
 
+let pickerLastTab = 'projects'; // pamatuje naposledy otevřený tab
+
 window.switchPickerTab = async function(tab) {
+  pickerLastTab = tab;
   document.querySelectorAll('.picker-tab').forEach(b =>
     b.classList.toggle('active',
       (tab==='projects' && b.textContent.includes('Projekt')) ||
@@ -5954,7 +5967,7 @@ async function renderPickerProjects() {
       if (!files.length) continue;
       const sh = document.createElement('div');
       sh.className = 'picker-section-hdr';
-      sh.style.cssText = 'padding-left:24px;font-size:9px;opacity:0.75;';
+      sh.style.cssText = 'padding-left:24px;font-size:10px;color:#f5a623;font-weight:700;letter-spacing:0.4px;opacity:1;';
       sh.textContent = s.name;
       body.appendChild(sh);
       files.forEach(f => {
@@ -6020,6 +6033,7 @@ function applyPickedFile(name, content, note) {
   if (pickerTarget === 'diffOld') {
     oldText = content;
     oldFileName = name + (note ? '  —  ' + note : '');
+    document.getElementById('colHeaders').classList.remove('hidden');
     updateColHeaderDisplay();
     document.getElementById('filePickerOverlay').classList.remove('active');
     if (newText) runDiff(false);
@@ -6028,6 +6042,7 @@ function applyPickedFile(name, content, note) {
   if (pickerTarget === 'diffNew') {
     newText = content;
     newFileName = name + (note ? '  —  ' + note : '');
+    document.getElementById('colHeaders').classList.remove('hidden');
     updateColHeaderDisplay();
     document.getElementById('filePickerOverlay').classList.remove('active');
     if (oldText) runDiff(false);
