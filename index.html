@@ -1808,6 +1808,7 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
                 style="padding:6px 12px;background:rgba(245,166,35,0.15);border:1.5px solid #f5a623;color:#f5a623;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.2px;"
                 title="Nastavit aktuální master soubory projektu">⭐ Aktuální soubory</button>
               <button class="btn sec sm" id="exportProjectBtn">📤 Export ZIP</button>
+              <button class="btn sec sm" id="downloadAllMdBtn" onclick="downloadAllMdFiles()" title="Stáhnout všechny .md soubory projektu postupně jako samostatné soubory">⬇ Stáhnout MD</button>
             </div>
 
             <!-- Current files strip -->
@@ -5506,7 +5507,7 @@ const FILE_TYPES = {
   current: { label: 'Aktuální', icon: '📄', css: 'current' },
   patch:   { label: 'Patch',    icon: '🔧', css: 'patch'   },
   result:  { label: 'Výsledek', icon: '✅', css: 'result'  },
-  final:   { label: 'Finál',    icon: '🏁', css: 'final'   },
+  final:   { label: 'Finál',    icon: '<span style="color:#c77dff;font-size:14px;filter:drop-shadow(0 0 4px rgba(180,80,255,0.6))">⚑</span>', css: 'final'   },
   archive: { label: 'Archiv',   icon: '📦', css: 'archive' },
 };
 
@@ -5602,7 +5603,7 @@ window.selectSession = async function(sid) {
         <option value="current">📄 Aktuální</option>
         <option value="patch">🔧 Patch</option>
         <option value="result">✅ Výsledek</option>
-        <option value="final">🏁 Finál</option>
+        <option value="final">⚑ Finál</option>
         <option value="archive">📦 Archiv</option>
       </select>
       <button class="btn sec sm" id="transferToStorageBtn" onclick="transferSessionToStorage(${sid})"
@@ -5642,7 +5643,7 @@ window.selectSession = async function(sid) {
           <option value="current" ${f.fileType==='current'?'selected':''}>📄 Aktuální</option>
           <option value="patch" ${f.fileType==='patch'?'selected':''}>🔧 Patch</option>
           <option value="result" ${f.fileType==='result'?'selected':''}>✅ Výsledek</option>
-          <option value="final" ${f.fileType==='final'?'selected':''}>🏁 Finál</option>
+          <option value="final" ${f.fileType==='final'?'selected':''}>⚑ Finál</option>
           <option value="archive" ${f.fileType==='archive'?'selected':''}>📦 Archiv</option>
         </select>
       </div>
@@ -5674,6 +5675,16 @@ window.addFromStorageToSession = async function(sid) {
 window.addFilesToSession = async function(sid, input) {
   const fileType = document.getElementById('addFileTypeSelect')?.value || 'current';
   const session = await pdbGet('sessions', sid);
+  // Clear diffSide:'new' from previously added files in this session
+  try {
+    const existing = await pdbGetByIndex('pfiles', 'sessionId', sid);
+    for (const ef of existing) {
+      if (ef.diffSide === 'new') {
+        ef.diffSide = null;
+        await pdbUpdate('pfiles', ef);
+      }
+    }
+  } catch(e) {}
   for (const f of input.files) {
     const text = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsText(f); });
     await pdbAdd('pfiles', {
@@ -6733,6 +6744,39 @@ function extractFileSummary(content, maxLen) {
 // ================================================================
 // MASTER FILES TABLE VIEW
 // ================================================================
+// ================================================================
+// DOWNLOAD ALL MD FILES — v4.7
+// Stáhne všechny .md soubory projektu postupně (bez ZIP)
+// ================================================================
+window.downloadAllMdFiles = async function() {
+  // Collect all pfiles for current project
+  if (!currentProjectId) { alert('Nejdřív vyber projekt.'); return; }
+  const sessions = await pdbGetByIndex('sessions', 'projectId', currentProjectId);
+  let allFiles = [];
+  for (const s of sessions) {
+    const files = await pdbGetByIndex('pfiles', 'sessionId', s.id);
+    allFiles = allFiles.concat(files.filter(f => f.content && f.name.endsWith('.md')));
+  }
+  if (!allFiles.length) { alert('Žádné .md soubory v projektu.'); return; }
+
+  const confirmed = confirm(`Stáhnout ${allFiles.length} .md souborů? Prohlížeč může každý soubor zvlášť potvrdit.`);
+  if (!confirmed) return;
+
+  // Download sequentially with small delay to avoid browser blocking
+  for (let i = 0; i < allFiles.length; i++) {
+    const f = allFiles[i];
+    await new Promise(res => setTimeout(res, i === 0 ? 0 : 200));
+    const blob = new Blob([f.content], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = f.name.endsWith('.md') ? f.name : f.name + '.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
+};
+
 window.showMasterFilesTable = async function() {
   const tableView = document.getElementById('masterFilesTableView');
   const tbody = document.getElementById('masterFilesTableBody');
@@ -6773,12 +6817,17 @@ window.showMasterFilesTable = async function() {
     const summary = extractFileSummary ? extractFileSummary(f.content, 100) : '';
     const size = f.content ? (f.content.length / 1024).toFixed(1) + ' KB' : '?';
 
+    const ftBadge = f.fileType === 'final'
+      ? `<span style="background:rgba(180,80,255,0.18);border:1px solid rgba(180,80,255,0.5);color:#c77dff;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;box-shadow:0 0 6px rgba(180,80,255,0.3);">⚑ Finál</span>`
+      : f.fileType === 'result'
+      ? `<span style="background:var(--add-bg);border:1px solid var(--add-border);color:var(--add-text);border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;">✅ Výsledek</span>`
+      : '';
     const tr = document.createElement('tr');
     tr.style.cssText = 'border-bottom:1px solid var(--border);transition:background 0.1s;cursor:pointer;';
     tr.innerHTML = `
       <td style="padding:8px 10px;">
         <span style="font-family:var(--md-mono);font-size:12px;font-weight:700;color:var(--text);">${esc(f.name)}</span>
-        <span style="font-size:10px;color:var(--text-muted);display:block;">${size}</span>
+        <span style="font-size:10px;color:var(--text-muted);display:block;">${size} ${ftBadge}</span>
       </td>
       <td style="padding:8px 10px;">
         <span style="font-size:11px;font-weight:700;color:#f5a623;background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.25);border-radius:3px;padding:2px 7px;">${esc(sess?.name || '?')}</span>
@@ -6795,19 +6844,16 @@ window.showMasterFilesTable = async function() {
     tbody.appendChild(tr);
   }
 
-  // Summary row
-  const sumTr = document.createElement('tr');
-  sumTr.innerHTML = `<td colspan="2" style="padding:8px 10px;font-size:11px;color:var(--text-muted);">Celkem ${Object.keys(projectCF).length} master souborů</td>
-    <td style="padding:8px 10px;text-align:right;font-family:var(--md-mono);font-size:12px;font-weight:700;color:var(--text);" id="masterTotalLines">—</td>
-    <td colspan="2"></td>`;
-  tbody.appendChild(sumTr);
+  // Summary footer
+  const totalFiles = Object.keys(projectCF).length;
+  document.getElementById('masterTotalFiles').textContent = totalFiles;
 
   // Total lines
   let total = 0;
   for (const fileId of Object.values(projectCF)) {
     try { const f = await pdbGet('pfiles', fileId); if (f?.content) total += f.content.split('\n').length; } catch(e) {}
   }
-  document.getElementById('masterTotalLines').textContent = total.toLocaleString('cs-CZ') + ' ř';
+  document.getElementById('masterTotalLinesFooter').textContent = total.toLocaleString('cs-CZ') + ' ř';
 };
 
 </script>
@@ -6826,9 +6872,10 @@ window.showMasterFilesTable = async function() {
       </div>
     </div>
     <!-- Table overview (hidden by default) -->
-    <div id="masterFilesTableView" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg);">
+    <div id="masterFilesTableView" style="display:none;border-bottom:1px solid var(--border);background:var(--bg);">
+      <div style="overflow-y:auto;max-height:55vh;">
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <thead>
+        <thead style="position:sticky;top:0;background:var(--bg);z-index:2;">
           <tr style="border-bottom:2px solid var(--border);">
             <th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-size:10px;letter-spacing:0.7px;text-transform:uppercase;">Soubor</th>
             <th style="text-align:left;padding:6px 10px;color:var(--text-muted);font-size:10px;letter-spacing:0.7px;text-transform:uppercase;">Session</th>
@@ -6839,6 +6886,12 @@ window.showMasterFilesTable = async function() {
         </thead>
         <tbody id="masterFilesTableBody"></tbody>
       </table>
+      </div>
+      <div style="padding:6px 14px;border-top:1px solid var(--border);display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text-muted);">
+        <span>Celkem master souborů: <b id="masterTotalFiles" style="color:var(--text);">—</b></span>
+        <span>Celkem řádků: <b id="masterTotalLinesFooter" style="color:var(--accent);font-family:var(--md-mono);">—</b></span>
+        <button onclick="downloadAllMdFiles()" style="margin-left:auto;padding:4px 12px;font-size:11px;font-weight:600;background:rgba(180,80,255,0.12);border:1px solid rgba(180,80,255,0.4);color:#c77dff;border-radius:4px;cursor:pointer;">⬇ Stáhnout všechny MD</button>
+      </div>
     </div>
     <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);line-height:1.6;">
       Pro každý název souboru označte <b>jeden</b> soubor jako "aktuální master". Tento soubor se zobrazí v liště nahoře.
