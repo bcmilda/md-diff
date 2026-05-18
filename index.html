@@ -376,6 +376,7 @@
   .md-block em { font-style: italic; color: #c0b8f0; }
   .md-block a { color: var(--accent); text-decoration: none; }
   .md-block a:hover { text-decoration: underline; }
+  .md-block u { text-decoration: underline; text-decoration-color: #f5a623; color: #ffd580; text-decoration-thickness: 2px; }
   .md-block table { border-collapse: collapse; width: 100%; font-size: 0.9em; margin: 4px 0; }
   .md-block th { background: var(--bg-card); padding: 6px 10px; text-align: left; border: 1px solid var(--border); font-weight: 600; }
   .md-block td { padding: 5px 10px; border: 1px solid var(--border); }
@@ -1078,7 +1079,7 @@
     font-size: 11px; color: var(--text-muted); flex: 1; font-style: italic;
   }
   .explorer-panel-hdr .panel-meta {
-    font-size: 10px; color: var(--text-muted); font-family: var(--md-mono); flex-shrink: 0;
+    font-size: 12px; color: var(--accent); font-family: var(--md-mono); flex-shrink: 0; font-weight: 600;
   }
   .explorer-panel-hdr .panel-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .explorer-panel-content {
@@ -6059,7 +6060,8 @@ function applyPickedFile(name, content, note) {
         ts: Date.now(),
         size: content.length,
         lines,
-        desc
+        desc,
+        diffSide: 'new'
       }).then(() => selectSession(sid));
     });
     return;
