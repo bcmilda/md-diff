@@ -782,7 +782,12 @@
   .sfc-type.current { background: var(--accent-soft); color: var(--accent); }
   .sfc-type.patch { background: rgba(255,208,128,0.12); color: var(--mod-text); }
   .sfc-type.result { background: var(--add-bg); color: var(--add-text); }
+  .sfc-type.final { background: rgba(180,80,255,0.15); color: #c77dff; border: 1px solid rgba(180,80,255,0.45); box-shadow: 0 0 6px rgba(180,80,255,0.3); }
   .sfc-type.archive { background: var(--bg-alt); color: var(--text-dim); border: 1px solid var(--border); }
+  /* sfc-name barevné označení: L=modrá, R=zelená, nový=oranžová */
+  .sfc-name.side-left  { color: #4fc3f7; }
+  .sfc-name.side-right { color: #6ee79a; }
+  .sfc-name.side-new   { color: #f5a623; }
   .session-file-card .sfc-meta { font-size: 11px; color: var(--text); font-family: var(--md-mono); opacity: 0.75; }
   .session-file-card .sfc-note { font-size: 11px; color: var(--mod-text); font-style: italic; }
   .session-file-card .sfc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
@@ -835,6 +840,11 @@
   .picker-item .pi-name { flex: 1; font-family: var(--md-mono); font-size: 12px; color: var(--text); }
   .picker-item .pi-meta { font-size: 10px; color: var(--text-dim); font-family: var(--md-mono); }
   .picker-item .pi-type { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 700; }
+  .pi-type.current { background: var(--accent-soft); color: var(--accent); }
+  .pi-type.patch   { background: rgba(255,208,128,0.12); color: var(--mod-text); }
+  .pi-type.result  { background: var(--add-bg); color: var(--add-text); }
+  .pi-type.final   { background: rgba(180,80,255,0.15); color: #c77dff; border: 1px solid rgba(180,80,255,0.4); box-shadow: 0 0 5px rgba(180,80,255,0.25); }
+  .pi-type.archive { background: var(--bg-alt); color: var(--text-dim); border: 1px solid var(--border); }
   .picker-section-hdr { font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); font-weight: 700; padding: 8px 12px 4px; }
 
   /* === GLOBAL VISUAL ENHANCEMENT v4.2 === */
@@ -5495,6 +5505,7 @@ const FILE_TYPES = {
   current: { label: 'Aktuální', icon: '📄', css: 'current' },
   patch:   { label: 'Patch',    icon: '🔧', css: 'patch'   },
   result:  { label: 'Výsledek', icon: '✅', css: 'result'  },
+  final:   { label: 'Finál',    icon: '🏁', css: 'final'   },
   archive: { label: 'Archiv',   icon: '📦', css: 'archive' },
 };
 
@@ -5569,7 +5580,7 @@ window.selectSession = async function(sid) {
   await renderProjectsNav();
   const s = await pdbGet('sessions', sid);
   const files = await pdbGetByIndex('pfiles', 'sessionId', sid);
-  files.sort((a,b) => { const o = ['current','patch','result','archive']; return o.indexOf(a.fileType)-o.indexOf(b.fileType); });
+  files.sort((a,b) => { const o = ['current','patch','result','final','archive']; return o.indexOf(a.fileType)-o.indexOf(b.fileType); });
 
   const detail = document.getElementById('sessionDetail');
   detail.innerHTML = `
@@ -5590,6 +5601,7 @@ window.selectSession = async function(sid) {
         <option value="current">📄 Aktuální</option>
         <option value="patch">🔧 Patch</option>
         <option value="result">✅ Výsledek</option>
+        <option value="final">🏁 Finál</option>
         <option value="archive">📦 Archiv</option>
       </select>
       <button class="btn sec sm" id="transferToStorageBtn" onclick="transferSessionToStorage(${sid})"
@@ -5610,15 +5622,26 @@ window.selectSession = async function(sid) {
     const ft = FILE_TYPES[f.fileType] || FILE_TYPES.current;
     const lines = f.content ? f.content.split('\n').length : 0;
     const size = f.content ? (f.content.length/1024).toFixed(1)+' KB' : '?';
+    // Badge inline select style per type
+    const badgeStyle = {
+      current: 'background:var(--accent-soft);border:1px solid rgba(79,142,247,0.4);color:var(--accent);',
+      patch:   'background:rgba(255,208,128,0.12);border:1px solid rgba(255,208,128,0.3);color:var(--mod-text);',
+      result:  'background:var(--add-bg);border:1px solid var(--add-border);color:var(--add-text);',
+      final:   'background:rgba(180,80,255,0.15);border:1px solid rgba(180,80,255,0.45);color:#c77dff;box-shadow:0 0 6px rgba(180,80,255,0.25);',
+      archive: 'background:var(--bg-alt);border:1px solid var(--border);color:var(--text-dim);',
+    }[f.fileType] || 'background:var(--accent-soft);color:var(--accent);';
+    // sfc-name color class: L=blue, R=green, new=orange
+    const sideClass = f.diffSide === 'L' ? 'side-left' : f.diffSide === 'R' ? 'side-right' : f.diffSide === 'new' ? 'side-new' : '';
     return `<div class="session-file-card">
       <div class="sfc-top">
         <span class="sfc-icon">${ft.icon}</span>
-        <span class="sfc-name" title="${esc(f.name)}">${esc(f.name)}</span>
+        <span class="sfc-name ${sideClass}" title="${esc(f.name)}">${esc(f.name)}</span>
         <select class="sfc-type-select" data-fid="${f.id}" onchange="changeFileType(${f.id}, this.value)" title="Změnit typ souboru"
-          style="background:${f.fileType==='patch'?'rgba(255,208,128,0.12)':f.fileType==='result'?'var(--add-bg)':f.fileType==='archive'?'var(--bg-alt)':'var(--accent-soft)'};border:1px solid ${f.fileType==='patch'?'rgba(255,208,128,0.3)':f.fileType==='result'?'var(--add-border)':f.fileType==='archive'?'var(--border)':'rgba(79,142,247,0.4)'};color:${f.fileType==='patch'?'var(--mod-text)':f.fileType==='result'?'var(--add-text)':f.fileType==='archive'?'var(--text-dim)':'var(--accent)'};border-radius:3px;padding:2px 4px;font-size:10px;font-weight:700;cursor:pointer;outline:none;">
+          style="${badgeStyle}border-radius:3px;padding:2px 4px;font-size:10px;font-weight:700;cursor:pointer;outline:none;">
           <option value="current" ${f.fileType==='current'?'selected':''}>📄 Aktuální</option>
           <option value="patch" ${f.fileType==='patch'?'selected':''}>🔧 Patch</option>
           <option value="result" ${f.fileType==='result'?'selected':''}>✅ Výsledek</option>
+          <option value="final" ${f.fileType==='final'?'selected':''}>🏁 Finál</option>
           <option value="archive" ${f.fileType==='archive'?'selected':''}>📦 Archiv</option>
         </select>
       </div>
@@ -5654,7 +5677,8 @@ window.addFilesToSession = async function(sid, input) {
     const text = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsText(f); });
     await pdbAdd('pfiles', {
       sessionId: sid, projectId: session.projectId,
-      name: f.name, content: text, fileType, ts: Date.now(), note: ''
+      name: f.name, content: text, fileType, ts: Date.now(), note: '',
+      diffSide: 'new'  // oranžová — právě přidaný soubor
     });
   }
   input.value = '';
@@ -5666,9 +5690,20 @@ window.addFilesToSession = async function(sid, input) {
 window.openPFileInDiff = async function(fid) {
   const f = await pdbGet('pfiles', fid);
   if (!f) return;
-  if (!newText) { newText = f.content; newFileName = f.name; }
-  else if (!oldText) { oldText = f.content; oldFileName = f.name; }
-  else { newText = f.content; newFileName = f.name; }
+  let side;
+  if (!newText) {
+    newText = f.content; newFileName = f.name; side = 'R';
+  } else if (!oldText) {
+    oldText = f.content; oldFileName = f.name; side = 'L';
+  } else {
+    newText = f.content; newFileName = f.name; side = 'R';
+  }
+  // Save diffSide to file record and refresh card
+  if (side) {
+    f.diffSide = side;
+    await pdbUpdate('pfiles', f);
+    await selectSession(f.sessionId);
+  }
   document.querySelector('.sidebar-tab[data-panel="diff"]').click();
   if (oldText && newText) runDiff(false);
 };
