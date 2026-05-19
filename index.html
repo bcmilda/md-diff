@@ -6477,7 +6477,25 @@ const _origRunDiffProg = runDiff;
 const LS_CURRENT_FILES = 'mddiff_current_files';
 
 function loadCurrentFiles() {
-  try { return JSON.parse(localStorage.getItem(LS_CURRENT_FILES) || '{}'); } catch(e) { return {}; }
+  try {
+    const data = JSON.parse(localStorage.getItem(LS_CURRENT_FILES) || '{}');
+    // Migrate: re-normalize all keys using current getBaseName logic
+    let changed = false;
+    for (const pid of Object.keys(data)) {
+      const normalized = {};
+      for (const [key, fid] of Object.entries(data[pid])) {
+        const newKey = getBaseName(key.replace(/\.md$/i,'') + '.md');
+        // Last write wins — keep highest fid (newest file) for duplicate keys
+        if (!normalized[newKey] || fid > normalized[newKey]) {
+          normalized[newKey] = fid;
+          if (newKey !== key) changed = true;
+        }
+      }
+      if (changed) data[pid] = normalized;
+    }
+    if (changed) { try { localStorage.setItem(LS_CURRENT_FILES, JSON.stringify(data)); } catch(e) {} }
+    return data;
+  } catch(e) { return {}; }
 }
 function saveCurrentFilesData(data) {
   try { localStorage.setItem(LS_CURRENT_FILES, JSON.stringify(data)); } catch(e) {}
@@ -6671,16 +6689,21 @@ async function renderCurrentFilesManager() {
       row.dataset.base = base;
 
       row.addEventListener('click', () => {
+        const alreadySelected = row.dataset.selected === '1';
+        // Deselect all in this section first
         section.querySelectorAll('[data-base]').forEach(r => {
           r.style.background = 'transparent';
           r.style.border = '1px solid transparent';
           r.querySelector('span').textContent = '○';
           delete r.dataset.selected;
         });
-        row.style.background = 'var(--accent-soft)';
-        row.style.border = '1px solid rgba(79,142,247,0.3)';
-        starSpan.textContent = '⭐';
-        row.dataset.selected = '1';
+        // If was not selected → select it; if was selected → leave deselected (toggle off)
+        if (!alreadySelected) {
+          row.style.background = 'var(--accent-soft)';
+          row.style.border = '1px solid rgba(79,142,247,0.3)';
+          starSpan.textContent = '⭐';
+          row.dataset.selected = '1';
+        }
       });
       if (isCurrent) row.dataset.selected = '1';
       section.appendChild(row);
@@ -6889,7 +6912,7 @@ window.showMasterFilesTable = async function() {
   for (const fileId of Object.values(projectCF)) {
     try { const f2 = await pdbGet('pfiles', fileId); if (f2?.content) total += f2.content.split('\n').length; } catch(e) {}
   }
-  if (totLinesEl) totLinesEl.textContent = total.toLocaleString('cs-CZ') + ' ř';
+  if (totLinesEl) totLinesEl.textContent = total.toLocaleString('cs-CZ');
 };
 
 </script>
@@ -6921,12 +6944,17 @@ window.showMasterFilesTable = async function() {
             </tr>
           </thead>
           <tbody id="masterFilesTableBody"></tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--border);background:var(--bg-alt);">
+              <td style="padding:7px 10px;font-size:11px;color:var(--text-muted);">Celkem: <b id="masterTotalFilesCount" style="color:var(--text);">—</b> souborů</td>
+              <td></td>
+              <td style="padding:7px 10px;text-align:right;font-family:var(--md-mono);font-size:13px;font-weight:800;color:var(--accent);" id="masterTotalLinesCount">—</td>
+              <td colspan="2" style="padding:7px 10px;">
+                <button onclick="downloadMasterMdFiles()" style="padding:4px 12px;font-size:11px;font-weight:600;background:rgba(79,142,247,0.1);border:1px solid rgba(79,142,247,0.4);color:var(--accent);border-radius:4px;cursor:pointer;">⬇ Stáhnout master MD</button>
+              </td>
+            </tr>
+          </tfoot>
         </table>
-      </div>
-      <div style="border-top:1px solid var(--border);padding:7px 14px;display:flex;gap:16px;align-items:center;font-size:11px;background:var(--bg-alt);">
-        <span style="color:var(--text-muted);">Celkem: <b id="masterTotalFilesCount" style="color:var(--text);">—</b> souborů</span>
-        <span style="color:var(--text-muted);">Řádků celkem: <b id="masterTotalLinesCount" style="color:var(--accent);font-family:var(--md-mono);">—</b></span>
-        <button onclick="downloadMasterMdFiles()" style="margin-left:auto;padding:4px 12px;font-size:11px;font-weight:600;background:rgba(79,142,247,0.1);border:1px solid rgba(79,142,247,0.4);color:var(--accent);border-radius:4px;cursor:pointer;">⬇ Stáhnout master MD</button>
       </div>
     </div>
     <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);line-height:1.6;">
