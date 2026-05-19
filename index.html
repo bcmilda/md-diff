@@ -6731,16 +6731,15 @@ window.saveCurrentFiles = async function() {
   const cf = loadCurrentFiles();
   if (!cf[currentProjectId]) cf[currentProjectId] = {};
 
-  // Collect all selected
+  // Build fresh mapping from UI selections only
+  const newCF = {};
   body.querySelectorAll('[data-selected="1"]').forEach(row => {
-    cf[currentProjectId][row.dataset.base] = +row.dataset.fid;
+    const base = row.dataset.base;
+    const fid = +row.dataset.fid;
+    if (base && fid) newCF[base] = fid;
   });
-  // Remove bases that have no selection (cleared)
-  body.querySelectorAll('[data-base]').forEach(row => {
-    if (row.dataset.base && !body.querySelector(`[data-base="${row.dataset.base}"][data-selected="1"]`)) {
-      delete cf[currentProjectId][row.dataset.base];
-    }
-  });
+  // Replace entire project CF with fresh normalized data
+  cf[currentProjectId] = newCF;
 
   saveCurrentFilesData(cf);
   document.getElementById('currentFilesOverlay').classList.remove('active');
@@ -6919,7 +6918,7 @@ window.showMasterFilesTable = async function() {
 
 <!-- CURRENT FILES MANAGER MODAL -->
 <div class="picker-overlay" id="currentFilesOverlay" onclick="if(event.target===this)this.classList.remove('active')">
-  <div class="picker-modal" style="width:900px;max-width:98vw;" onclick="event.stopPropagation()">
+  <div class="picker-modal" style="width:900px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;" onclick="event.stopPropagation()">
     <div class="picker-hdr">
       <h3>⭐ Aktuální master soubory projektu</h3>
       <button class="btn sec sm" onclick="openRootNamesSettings()" title="Nastavit kořenové názvy souborů pro groupování" style="font-size:11px;">⚙️ Kořeny</button>
@@ -6932,7 +6931,7 @@ window.showMasterFilesTable = async function() {
     </div>
     <!-- Table overview (hidden by default) -->
     <div id="masterFilesTableView" style="display:none;border-bottom:1px solid var(--border);background:var(--bg);">
-      <div style="max-height:62vh;overflow-y:auto;">
+      <div style="max-height:45vh;overflow-y:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead style="position:sticky;top:0;background:var(--bg);z-index:2;">
             <tr style="border-bottom:2px solid var(--border);">
@@ -6961,8 +6960,8 @@ window.showMasterFilesTable = async function() {
       Pro každý název souboru označte <b>jeden</b> soubor jako "aktuální master". Tento soubor se zobrazí v liště nahoře.
       Vždy by měl být aktuální pouze jedna verze každého souboru (npr. <code style="background:var(--bg-card);padding:1px 5px;border-radius:3px;">todo.md</code> ze Session 7).
     </div>
-    <div class="picker-body" id="currentFilesManagerBody" style="max-height:68vh;overflow-y:auto;"></div>
-    <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;">
+    <div class="picker-body" id="currentFilesManagerBody" style="flex:1;overflow-y:auto;min-height:0;"></div>
+    <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;background:var(--bg-card);">
       <button class="btn sm" onclick="saveCurrentFiles()">✓ Uložit</button>
       <button class="btn sec sm" onclick="document.getElementById('currentFilesOverlay').classList.remove('active')">Zavřít</button>
     </div>
