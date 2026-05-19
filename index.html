@@ -1823,7 +1823,7 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
                     style="padding:6px 14px;background:var(--accent);color:white;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(79,142,247,0.4);">
                     ⭐ Nastavit
                   </button>
-                  <button onclick="showCurrentFilesManager();setTimeout(showMasterFilesTable,200)"
+                  <button onclick="showCurrentFilesManager();setTimeout(()=>{showMasterFilesTable();},200)"
                     style="padding:6px 12px;background:rgba(245,166,35,0.15);border:1.5px solid #f5a623;color:#f5a623;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">
                     📊 Přehled
                   </button>
@@ -6601,6 +6601,11 @@ window.showCurrentFilesManager = async function() {
   if (!currentProjectId) return;
   const overlay = document.getElementById('currentFilesOverlay');
   overlay.classList.add('active');
+  // Always start on cards view
+  document.getElementById('masterFilesTableView').style.display = 'none';
+  document.getElementById('masterCardsView').style.display = 'flex';
+  const btn = document.getElementById('masterViewTableBtn');
+  if (btn) { btn.style.background = 'var(--bg-card)'; btn.style.color = 'var(--text-dim)'; }
   await renderCurrentFilesManager();
 };
 
@@ -6838,18 +6843,23 @@ window.downloadMasterMdFiles = async function() {
 
 window.showMasterFilesTable = async function() {
   const tableView = document.getElementById('masterFilesTableView');
+  const cardsView = document.getElementById('masterCardsView');
   const tbody = document.getElementById('masterFilesTableBody');
   const btn = document.getElementById('masterViewTableBtn');
   const isVisible = tableView.style.display !== 'none';
 
   if (isVisible) {
+    // Switch back to cards
     tableView.style.display = 'none';
+    cardsView.style.display = 'flex';
     btn.style.background = 'var(--bg-card)';
     btn.style.color = 'var(--text-dim)';
     return;
   }
 
-  tableView.style.display = '';
+  // Switch to table view
+  tableView.style.display = 'flex';
+  cardsView.style.display = 'none';
   btn.style.background = 'var(--accent-soft)';
   btn.style.color = 'var(--accent)';
 
@@ -6929,9 +6939,9 @@ window.showMasterFilesTable = async function() {
         <button onclick="document.getElementById('currentFilesOverlay').classList.remove('active')" class="btn sec sm">✕</button>
       </div>
     </div>
-    <!-- Table overview (hidden by default) -->
-    <div id="masterFilesTableView" style="display:none;border-bottom:1px solid var(--border);background:var(--bg);">
-      <div style="max-height:45vh;overflow-y:auto;">
+    <!-- Table overview (hidden by default, replaces card view when active) -->
+    <div id="masterFilesTableView" style="display:none;flex:1;overflow:hidden;flex-direction:column;background:var(--bg);">
+      <div style="flex:1;overflow-y:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead style="position:sticky;top:0;background:var(--bg);z-index:2;">
             <tr style="border-bottom:2px solid var(--border);">
@@ -6956,11 +6966,14 @@ window.showMasterFilesTable = async function() {
         </table>
       </div>
     </div>
-    <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);line-height:1.6;">
-      Pro každý název souboru označte <b>jeden</b> soubor jako "aktuální master". Tento soubor se zobrazí v liště nahoře.
-      Vždy by měl být aktuální pouze jedna verze každého souboru (npr. <code style="background:var(--bg-card);padding:1px 5px;border-radius:3px;">todo.md</code> ze Session 7).
+    <!-- Card selection view -->
+    <div id="masterCardsView" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0;">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);line-height:1.6;flex-shrink:0;">
+        Pro každý název souboru označte <b>jeden</b> soubor jako "aktuální master". Tento soubor se zobrazí v liště nahoře.
+        Vždy by měl být aktuální pouze jedna verze každého souboru (npr. <code style="background:var(--bg-card);padding:1px 5px;border-radius:3px;">todo.md</code> ze Session 7).
+      </div>
+      <div class="picker-body" id="currentFilesManagerBody" style="flex:1;overflow-y:auto;min-height:0;"></div>
     </div>
-    <div class="picker-body" id="currentFilesManagerBody" style="flex:1;overflow-y:auto;min-height:0;"></div>
     <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;background:var(--bg-card);">
       <button class="btn sm" onclick="saveCurrentFiles()">✓ Uložit</button>
       <button class="btn sec sm" onclick="document.getElementById('currentFilesOverlay').classList.remove('active')">Zavřít</button>
