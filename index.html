@@ -1176,8 +1176,8 @@
   <div class="sidebar-tab" data-panel="history">🕐<span class="tip">Historie</span></div>
   <div class="sidebar-tab" data-panel="aimerge">🤖<span class="tip">AI Merge</span></div>
   <div class="sidebar-tab" data-panel="explorer">📁<span class="tip">Prohlížeč souborů</span></div>
-  <div class="sidebar-tab proj-tab" data-panel="projects">📂<span class="tip">Projekty</span></div>
-  <div class="sidebar-tab stor-tab" data-panel="storage">💾<span class="tip">Úložiště</span></div>
+  <div class="sidebar-tab proj-tab" data-panel="projects">🗂️<span class="tip">Projekty</span></div>
+  <div class="sidebar-tab stor-tab" data-panel="storage">🗃️<span class="tip">Úložiště</span></div>
 </div>
 
 <!-- MAIN -->
@@ -1566,7 +1566,7 @@
       <div id="mergeSingleMode">
         <div class="merge-layout">
           <div>
-            <div class="merge-clbl">Originální soubor <span class="fname" id="mergeOrigName">—</span></div>
+            <div class="merge-clbl" style="color:var(--add-text);">Originální soubor <span class="fname" id="mergeOrigName" style="color:var(--add-text);">—</span></div>
             <div style="display:flex;gap:8px;margin-bottom:8px;">
               <input type="file" id="mergeOrigFile" accept=".md,.txt,.markdown" style="flex:1;font-size:11px;color:var(--text-dim);">
               <button class="btn sec sm" id="useOldAsMergeOrig">← Diff OLD</button>
@@ -1576,7 +1576,7 @@
             <div style="margin-top:4px;font-size:11px;color:var(--text-dim);" id="mergeOrigStats"></div>
           </div>
           <div>
-            <div class="merge-clbl">Patch / session update <span class="fname" id="mergePatchName">—</span></div>
+            <div class="merge-clbl" style="color:var(--accent);">Patch / session update <span class="fname" id="mergePatchName" style="color:var(--accent);">—</span></div>
             <div style="display:flex;gap:8px;margin-bottom:8px;">
               <input type="file" id="mergePatchFile" accept=".md,.txt,.markdown" style="flex:1;font-size:11px;color:var(--text-dim);">
               <button class="btn sec sm" id="useNewAsMergePatch">← Diff NEW</button>
@@ -1590,25 +1590,12 @@
 
       <!-- ═══ MULTI-PATCH MODE ═══ -->
       <div id="mergeMultiMode" style="display:none;">
-        <!-- Two column: patch file + original file side by side -->
+        <!-- Two column: Originální (vlevo, zelená) + Multi-patch (vpravo, modrá) -->
         <div class="merge-layout" style="margin-bottom:16px;">
           <div>
-            <div class="merge-clbl" style="margin-bottom:6px;">
-              <span style="background:var(--accent-soft);color:var(--accent);padding:2px 7px;border-radius:3px;font-size:10px;margin-right:6px;">1</span>
-              <span style="color:var(--accent);font-weight:700;">Multi-patch soubor</span> <span class="fname" id="multiPatchName">—</span>
-            </div>
-            <div style="display:flex;gap:8px;margin-bottom:8px;">
-              <input type="file" id="multiPatchFile" accept=".md,.txt,.markdown" style="flex:1;font-size:11px;color:var(--text-dim);position:relative;z-index:50;">
-            </div>
-            <div style="font-size:11px;color:var(--text-dim);line-height:1.6;padding:8px 10px;background:var(--bg-card);border-radius:4px;border:1px solid var(--border);">
-              Soubor s více sekcemi <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">## 📄 název.md</code>.
-              Po nahrání se automaticky rozseká na části.
-            </div>
-          </div>
-          <div>
-            <div class="merge-clbl" style="margin-bottom:6px;">
-              <span style="background:var(--add-bg);color:var(--add-text);padding:2px 7px;border-radius:3px;font-size:10px;margin-right:6px;">2</span>
-              <span style="color:var(--add-text);font-weight:700;">Originální soubory</span> — nahrávej postupně <span class="fname" id="multiCurrentOrigName">—</span>
+            <div class="merge-clbl" style="margin-bottom:6px;color:var(--add-text);">
+              <span style="background:var(--add-bg);color:var(--add-text);padding:2px 7px;border-radius:3px;font-size:10px;margin-right:6px;">1</span>
+              <span style="color:var(--add-text);font-weight:700;">Originální soubory</span> — nahrávej postupně <span class="fname" id="multiCurrentOrigName" style="color:var(--add-text);">—</span>
             </div>
             <div style="display:flex;gap:8px;margin-bottom:8px;">
               <input type="file" id="multiOrigFile" accept=".md,.txt,.markdown" style="flex:1;font-size:11px;color:var(--text-dim);position:relative;z-index:50;">
@@ -1617,6 +1604,19 @@
               placeholder="Nahraj nebo vlož obsah originálního souboru. Po kliknutí na sekci níže se načte správný název — pak nahraj odpovídající soubor."
               spellcheck="false" style="min-height:80px;border-color:var(--add-border);"></textarea>
             <div style="margin-top:4px;font-size:11px;color:var(--text-dim);" id="multiOrigStats"></div>
+          </div>
+          <div>
+            <div class="merge-clbl" style="margin-bottom:6px;color:var(--accent);">
+              <span style="background:var(--accent-soft);color:var(--accent);padding:2px 7px;border-radius:3px;font-size:10px;margin-right:6px;">2</span>
+              <span style="color:var(--accent);font-weight:700;">Multi-patch soubor</span> <span class="fname" id="multiPatchName" style="color:var(--accent);">—</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="file" id="multiPatchFile" accept=".md,.txt,.markdown" style="flex:1;font-size:11px;color:var(--text-dim);position:relative;z-index:50;">
+            </div>
+            <div style="font-size:11px;color:var(--text-dim);line-height:1.6;padding:8px 10px;background:var(--bg-card);border-radius:4px;border:1px solid var(--border);">
+              Soubor s více sekcemi <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">## 📄 název.md</code>.
+              Po nahrání se automaticky rozseká na části.
+            </div>
           </div>
         </div>
 
@@ -3213,7 +3213,7 @@ function updateProgressPanel() { renderRulesEditor(); updateProgressMetrics(); }
 // ================================================================
 function loadHistory() { try { return JSON.parse(localStorage.getItem(LS_HISTORY)||'[]'); } catch(e){ return []; } }
 function saveHistory(items) {
-  let it = items.slice(0,50);
+  let it = items.slice(0,200);
   while(it.length>0) { try { localStorage.setItem(LS_HISTORY,JSON.stringify(it)); return; } catch(e){ it=it.slice(0,-5); } }
 }
 function saveToHistory() {
@@ -4238,7 +4238,7 @@ function storageItemHTML(item, type) {
   return `<div class="storage-item" data-id="${item.id}">
     <span class="si-icon">${icon}</span>
     <div class="si-info">
-      <div class="si-name">${esc(item.name)}</div>
+      <div class="si-name" style="${_storageNewIds.has(item.id)?'color:#f5a623;font-weight:700;':''}">${esc(item.name)}${_storageNewIds.has(item.id)?'<span style=\"font-size:9px;background:rgba(245,166,35,0.15);color:#f5a623;border:1px solid rgba(245,166,35,0.4);border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:middle;\">NOVÝ</span>':''}</div>
       <div class="si-meta">
         <span>${date}</span>
         <span>${lines} řádků</span>
@@ -4395,8 +4395,12 @@ async function explorerDbClear() {
   });
 }
 
+// IDs souborů přidaných v aktuálním sezení – oranžové zvýraznění v záložce SOUBORY
+const _storageNewIds = new Set();
+
 async function saveToStorageDB(name, content, type, origContent, origName, note) {
   const id = await dbAdd({ name, content, type, origContent: origContent||null, origName: origName||null, note: note||'', ts: Date.now() });
+  _storageNewIds.add(id);
   return id;
 }
 
@@ -5755,8 +5759,26 @@ window.changeFileType = async function(fid, newType) {
   if (!f) return;
   f.fileType = newType;
   await pdbUpdate('pfiles', f);
-  await selectSession(f.sessionId);
-  // Rebuild current files panel if visible
+  // Update only the select badge style without full re-render (prevents flicker)
+  const sel = document.querySelector(`.sfc-type-select[data-fid="${fid}"]`);
+  if (sel) {
+    const badgeStyle = {
+      current: 'background:var(--accent-soft);border:1px solid rgba(79,142,247,0.4);color:var(--accent);',
+      patch:   'background:rgba(255,208,128,0.12);border:1px solid rgba(255,208,128,0.3);color:var(--mod-text);',
+      result:  'background:var(--add-bg);border:1px solid var(--add-border);color:var(--add-text);',
+      final:   'background:rgba(180,80,255,0.15);border:1px solid rgba(180,80,255,0.45);color:#c77dff;box-shadow:0 0 6px rgba(180,80,255,0.25);',
+      archive: 'background:var(--bg-alt);border:1px solid var(--border);color:var(--text-dim);',
+    }[newType] || 'background:var(--accent-soft);color:var(--accent);';
+    sel.setAttribute('style', badgeStyle + 'border-radius:3px;padding:2px 4px;font-size:10px;font-weight:700;cursor:pointer;outline:none;');
+    // Update icon in card header
+    const card = sel.closest('.session-file-card');
+    if (card) {
+      const FILE_ICONS = {current:'📄',patch:'🔧',result:'✅',final:'💜',archive:'📦'};
+      const iconEl = card.querySelector('.sfc-icon');
+      if (iconEl) iconEl.textContent = FILE_ICONS[newType] || '📄';
+    }
+  }
+  // Rebuild current files panel if visible (lightweight, no session re-render)
   if (currentProjectId) await buildCurrentFilesPanel(currentProjectId);
 };
 
