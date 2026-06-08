@@ -1164,6 +1164,76 @@
   #fbSyncIndicator.error { color: var(--del-text); }
   #fbSyncIndicator.offline { color: var(--mod-text); }
 
+
+  /* ===== EDIT PANEL ===== */
+  #panel-edit { padding: 0; overflow: hidden; display: none; flex-direction: column; }
+  #panel-edit.active { display: flex; }
+
+  .edit-toolbar {
+    flex-shrink: 0; padding: 10px 14px; background: var(--bg-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  .edit-toolbar-row { display: flex; align-items: center; gap: 8px; }
+  .edit-toolbar-row + .edit-toolbar-row { margin-top: 7px; }
+
+  .edit-search-inp {
+    flex: 1; background: var(--bg-card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 10px; font-family: var(--md-mono); font-size: 12px; outline: none;
+    min-width: 0;
+  }
+  .edit-search-inp:focus { border-color: var(--accent); }
+
+  .edit-main { flex: 1; display: flex; overflow: hidden; min-height: 0; background: var(--bg); }
+
+  .edit-line-nums {
+    width: 52px; flex-shrink: 0; overflow: hidden;
+    padding: 10px 8px 10px 0;
+    font-family: var(--md-mono); font-size: 13px; line-height: 1.55;
+    color: var(--text-muted); background: var(--bg-alt);
+    border-right: 1px solid var(--border); text-align: right;
+    user-select: none; white-space: pre; box-sizing: border-box;
+  }
+
+  .edit-wrapper { flex: 1; position: relative; overflow: hidden; }
+
+  .edit-backdrop, .edit-textarea {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    padding: 10px 14px; margin: 0;
+    font-family: var(--md-mono); font-size: 13px; line-height: 1.55;
+    white-space: pre; overflow: auto; word-wrap: normal;
+    border: none; box-sizing: border-box; tab-size: 2;
+  }
+  .edit-backdrop {
+    background: var(--bg); color: transparent;
+    pointer-events: none; z-index: 1;
+  }
+  .edit-textarea {
+    background: transparent; color: var(--text);
+    -webkit-text-fill-color: var(--text);
+    caret-color: var(--text); resize: none; outline: none;
+    z-index: 2; position: absolute;
+  }
+
+  mark.search-hit {
+    background: rgba(255, 210, 0, 0.35); color: inherit;
+    border-radius: 2px; -webkit-text-fill-color: inherit;
+  }
+  mark.search-hit.cur-hit {
+    background: rgba(255, 130, 0, 0.75);
+    -webkit-text-fill-color: #000; border-radius: 2px;
+  }
+
+  .edit-status {
+    flex-shrink: 0; padding: 4px 14px; font-size: 11px; color: var(--text-dim);
+    background: var(--bg-alt); border-top: 1px solid var(--border);
+    font-family: var(--md-mono); display: flex; gap: 16px; align-items: center;
+  }
+  .edit-match-badge {
+    display: inline-block; min-width: 64px; font-size: 11px;
+    font-family: var(--md-mono); text-align: right; flex-shrink: 0;
+  }
+
 </style>
 </head>
 <body>
@@ -1178,6 +1248,7 @@
   <div class="sidebar-tab" data-panel="explorer">📁<span class="tip">Prohlížeč souborů</span></div>
   <div class="sidebar-tab proj-tab" data-panel="projects">🗂️<span class="tip">Projekty</span></div>
   <div class="sidebar-tab stor-tab" data-panel="storage">🗃️<span class="tip">Úložiště</span></div>
+  <div class="sidebar-tab" data-panel="edit">✏️<span class="tip">Editace</span></div>
 </div>
 
 <!-- MAIN -->
@@ -1986,6 +2057,61 @@ Vrať POUZE obsah výsledného souboru bez komentářů.</textarea>
       </div><!-- /explorer-panels -->
     </div><!-- /panels wrapper -->
   </div><!-- /panel-explorer -->
+
+
+  <!-- EDIT PANEL -->
+  <div class="panel" id="panel-edit">
+
+    <!-- Toolbar row 1: file ops -->
+    <div class="edit-toolbar">
+      <div class="edit-toolbar-row">
+        <label class="btn sec sm" style="cursor:pointer;" title="Otevřít soubor">
+          📂 Otevřít
+          <input type="file" id="editFileInput" accept=".js,.ts,.html,.css,.md,.txt,.json,.py,.sh" style="display:none;">
+        </label>
+        <span id="editFileNameLbl"
+          style="font-family:var(--md-mono);font-size:12px;color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          — žádný soubor —
+        </span>
+        <button class="btn sec sm" onclick="editSave()" title="Uložit / stáhnout soubor (Ctrl+S)">💾 Uložit</button>
+      </div>
+
+      <!-- Toolbar row 2: search -->
+      <div class="edit-toolbar-row">
+        <input type="text" id="editSearchInput" class="edit-search-inp"
+          placeholder="🔍  Hledat v kódu… (Enter = další, Shift+Enter = předchozí)"
+          oninput="editRunSearch()" autocomplete="off" spellcheck="false">
+        <button class="btn sec sm" onclick="editPrevMatch()" title="Předchozí výskyt (Shift+Enter)">▲</button>
+        <button class="btn sec sm" onclick="editNextMatch()" title="Další výskyt (Enter)">▼</button>
+        <span id="editMatchBadge" class="edit-match-badge" style="color:var(--text-dim);">—</span>
+        <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;" title="Rozlišovat velikost písmen">
+          <input type="checkbox" id="editCaseSensitive" onchange="editRunSearch()"> Aa
+        </label>
+        <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;" title="Regulární výraz">
+          <input type="checkbox" id="editUseRegex" onchange="editRunSearch()"> .*
+        </label>
+        <button class="btn sec sm" onclick="editClearSearch()" title="Zrušit hledání (Esc)">✕</button>
+      </div>
+    </div>
+
+    <!-- Editor body -->
+    <div class="edit-main">
+      <div id="editLineNums" class="edit-line-nums">1</div>
+      <div class="edit-wrapper">
+        <div id="editBackdrop" class="edit-backdrop" aria-hidden="true"></div>
+        <textarea id="editTextarea" class="edit-textarea"
+          spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+          placeholder="Otevři soubor nebo vlož kód…"></textarea>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="edit-status">
+      <span id="editStatusMsg">Připraven</span>
+      <span id="editPositionInfo" style="margin-left:auto;"></span>
+    </div>
+
+  </div><!-- /panel-edit -->
 
 </div><!-- /main -->
 
@@ -7421,6 +7547,296 @@ console.log('Firebase sync inicializován.');
 
 // Spustit ihned — SDK je inline, určitě načteno
 initFirebase();
+
+// ================================================================
+// EDIT PANEL
+// ================================================================
+(function() {
+  let _ec = '';          // current content
+  let _eName = '';       // filename
+  let _eHandle = null;   // FileSystemFileHandle (if available)
+  let _eMatches = [];    // [{start, end}]
+  let _eCur = -1;        // current match index
+  let _eModified = false;
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Update helpers ──────────────────────────────────────────────
+  function updateLineNums() {
+    const ln = document.getElementById('editLineNums');
+    if (!ln) return;
+    const count = (_ec.match(/\n/g) || []).length + 1;
+    if (ln._cnt === count) return;
+    ln._cnt = count;
+    const arr = [];
+    for (let i = 1; i <= count; i++) arr.push(i);
+    ln.textContent = arr.join('\n');
+  }
+
+  function buildBackdrop() {
+    const bd = document.getElementById('editBackdrop');
+    if (!bd) return;
+    const q = (document.getElementById('editSearchInput') || {}).value || '';
+    const caseSens = (document.getElementById('editCaseSensitive') || {}).checked;
+    const useRx   = (document.getElementById('editUseRegex') || {}).checked;
+
+    if (!q.trim()) {
+      bd.innerHTML = esc(_ec) + '\n';
+      _eMatches = []; _eCur = -1;
+      badge(0, -1, false);
+      return;
+    }
+
+    // Build regex
+    let rx;
+    try {
+      rx = new RegExp(useRx ? q : q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSens ? 'g' : 'gi');
+    } catch(e) {
+      bd.innerHTML = esc(_ec) + '\n';
+      badge(0, -1, true);
+      return;
+    }
+
+    // Find all matches
+    const hits = [];
+    let m;
+    while ((m = rx.exec(_ec)) !== null) {
+      hits.push({ start: m.index, end: m.index + m[0].length });
+      if (m[0].length === 0) rx.lastIndex++;  // safety for zero-length
+    }
+    _eMatches = hits;
+    if (_eCur >= hits.length) _eCur = hits.length - 1;
+
+    // Build highlighted HTML
+    let html = '';
+    let last = 0;
+    for (let i = 0; i < hits.length; i++) {
+      const { start, end } = hits[i];
+      html += esc(_ec.slice(last, start));
+      const cls = i === _eCur ? 'search-hit cur-hit' : 'search-hit';
+      html += '<mark class="' + cls + '">' + esc(_ec.slice(start, end)) + '</mark>';
+      last = end;
+    }
+    html += esc(_ec.slice(last));
+    bd.innerHTML = html + '\n';
+    badge(hits.length, _eCur, false);
+  }
+
+  function badge(total, cur, err) {
+    const el = document.getElementById('editMatchBadge');
+    if (!el) return;
+    if (err) { el.textContent = '⚠ regex'; el.style.color = 'var(--del-text)'; return; }
+    const q = (document.getElementById('editSearchInput') || {}).value || '';
+    if (!q.trim()) { el.textContent = '—'; el.style.color = 'var(--text-dim)'; return; }
+    if (!total) { el.textContent = 'Nenalezeno'; el.style.color = 'var(--del-text)'; return; }
+    el.textContent = (cur >= 0 ? cur + 1 : 1) + ' / ' + total;
+    el.style.color = 'var(--add-text)';
+  }
+
+  function syncScroll() {
+    const ta = document.getElementById('editTextarea');
+    const bd = document.getElementById('editBackdrop');
+    const ln = document.getElementById('editLineNums');
+    if (!ta || !bd || !ln) return;
+    bd.scrollTop  = ta.scrollTop;
+    bd.scrollLeft = ta.scrollLeft;
+    ln.scrollTop  = ta.scrollTop;
+  }
+
+  function setStatus(msg) {
+    const el = document.getElementById('editStatusMsg');
+    if (el) el.textContent = msg;
+  }
+
+  function updatePosition(ta) {
+    const el = document.getElementById('editPositionInfo');
+    if (!el || !ta) return;
+    const val = ta.value;
+    const pos = ta.selectionStart;
+    const before = val.slice(0, pos);
+    const line = (before.match(/\n/g) || []).length + 1;
+    const col = pos - before.lastIndexOf('\n');
+    el.textContent = 'ř. ' + line + '  sl. ' + col;
+  }
+
+  function scrollToMatch(idx) {
+    const match = _eMatches[idx];
+    if (!match) return;
+    const ta = document.getElementById('editTextarea');
+    const bd = document.getElementById('editBackdrop');
+    const ln = document.getElementById('editLineNums');
+    if (!ta) return;
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 20.15;
+    const beforeMatch = _ec.slice(0, match.start);
+    const lineNum = (beforeMatch.match(/\n/g) || []).length;
+    const target = lineNum * lh - ta.clientHeight / 2 + lh;
+    ta.scrollTop = Math.max(0, target);
+    if (bd) { bd.scrollTop = ta.scrollTop; bd.scrollLeft = ta.scrollLeft; }
+    if (ln) ln.scrollTop = ta.scrollTop;
+    ta.focus();
+    ta.setSelectionRange(match.start, match.end);
+  }
+
+  // ── Public API (window.edit*) ────────────────────────────────────
+  window.editRunSearch = function() {
+    const q = (document.getElementById('editSearchInput') || {}).value || '';
+    if (!q.trim()) {
+      _eMatches = []; _eCur = -1;
+      buildBackdrop();
+      return;
+    }
+    const prev = _eCur;
+    _eCur = 0;
+    buildBackdrop();
+    if (_eMatches.length) scrollToMatch(_eCur);
+  };
+
+  window.editNextMatch = function() {
+    if (!_eMatches.length) { window.editRunSearch(); return; }
+    _eCur = (_eCur + 1) % _eMatches.length;
+    buildBackdrop();
+    scrollToMatch(_eCur);
+  };
+
+  window.editPrevMatch = function() {
+    if (!_eMatches.length) { window.editRunSearch(); return; }
+    _eCur = (_eCur - 1 + _eMatches.length) % _eMatches.length;
+    buildBackdrop();
+    scrollToMatch(_eCur);
+  };
+
+  window.editClearSearch = function() {
+    const si = document.getElementById('editSearchInput');
+    if (si) si.value = '';
+    _eMatches = []; _eCur = -1;
+    buildBackdrop();
+  };
+
+  window.editSave = async function() {
+    if (!_eName && !_ec) return;
+    const name = _eName || 'edit.js';
+    // Try File System Access API (Chrome/Edge)
+    if (_eHandle) {
+      try {
+        const w = await _eHandle.createWritable();
+        await w.write(_ec);
+        await w.close();
+        _eModified = false;
+        setStatus('✅ Uloženo: ' + name);
+        return;
+      } catch(e) { /* fallback to download */ }
+    }
+    const blob = new Blob([_ec], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    _eModified = false;
+    setStatus('⬇ Staženo: ' + name);
+  };
+
+  // ── Textarea events ──────────────────────────────────────────────
+  function onInput(ta) {
+    _ec = ta.value;
+    _eModified = true;
+    updateLineNums();
+    buildBackdrop();
+    syncScroll();
+    setStatus((_eName || 'soubor') + ' — neuloženo●');
+  }
+
+  function onScroll(ta) { syncScroll(); }
+
+  function onKeyDown(e) {
+    const ta = e.currentTarget;
+    // Tab → 2 spaces
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = ta.selectionStart, end = ta.selectionEnd;
+      ta.value = ta.value.slice(0, s) + '  ' + ta.value.slice(end);
+      ta.selectionStart = ta.selectionEnd = s + 2;
+      onInput(ta);
+      return;
+    }
+    // Ctrl+S → save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); window.editSave(); return; }
+    // Ctrl+F → search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      const si = document.getElementById('editSearchInput');
+      if (si) { si.focus(); si.select(); }
+      return;
+    }
+  }
+
+  function onSelect(ta) { updatePosition(ta); }
+
+  // ── Search input key events ──────────────────────────────────────
+  function searchKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.shiftKey ? window.editPrevMatch() : window.editNextMatch();
+    }
+    if (e.key === 'Escape') { window.editClearSearch(); document.getElementById('editTextarea')?.focus(); }
+  }
+
+  // ── Load file ────────────────────────────────────────────────────
+  function loadText(name, text, handle) {
+    _eName = name; _ec = text; _eHandle = handle || null; _eModified = false;
+    _eMatches = []; _eCur = -1;
+    document.getElementById('editFileNameLbl').textContent = name;
+    const ta = document.getElementById('editTextarea');
+    ta.value = text;
+    updateLineNums();
+    buildBackdrop();
+    const kb = (text.length / 1024).toFixed(1);
+    const lines = text.split('\n').length;
+    setStatus('Načteno: ' + name + '  (' + kb + ' KB · ' + lines + ' řádků)');
+    ta.focus();
+  }
+
+  // ── Init (DOMContentLoaded or immediately if DOM is ready) ───────
+  function init() {
+    const fi = document.getElementById('editFileInput');
+    if (fi) {
+      fi.addEventListener('change', async function(e) {
+        const f = e.target.files[0];
+        if (!f) return;
+        const text = await f.text();
+        loadText(f.name, text, null);
+        e.target.value = '';
+      });
+    }
+
+    const ta = document.getElementById('editTextarea');
+    if (ta) {
+      ta.addEventListener('input',  function() { onInput(ta); });
+      ta.addEventListener('scroll', function() { onScroll(ta); });
+      ta.addEventListener('keydown', onKeyDown);
+      ta.addEventListener('click',  function() { updatePosition(ta); });
+      ta.addEventListener('keyup',  function() { updatePosition(ta); });
+    }
+
+    const si = document.getElementById('editSearchInput');
+    if (si) si.addEventListener('keydown', searchKeyDown);
+
+    // Initial backdrop
+    if (ta) {
+      _ec = ta.value;
+      updateLineNums();
+      buildBackdrop();
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
 </script>
 
 </body>
