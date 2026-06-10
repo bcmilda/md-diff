@@ -7680,6 +7680,8 @@ initFirebase();
   }
 
   // ── Public API (window.edit*) ────────────────────────────────────
+  // editRunSearch — volá se při každém oninput → jen aktualizuje backdrop+badge, NESCROLLUJE
+  // (aby neskočil kurzor při psaní hledaného výrazu)
   window.editRunSearch = function() {
     const q = (document.getElementById('editSearchInput') || {}).value || '';
     if (!q.trim()) {
@@ -7687,22 +7689,32 @@ initFirebase();
       buildBackdrop();
       return;
     }
-    const prev = _eCur;
-    _eCur = 0;
+    // Zachovat aktuální pozici pokud existuje, jinak -1 (žádná navigace)
+    if (_eCur >= 0) {
+      // udrž index pouze pokud stále platný, jinak resetuj na -1 (bez scrollu)
+      if (_eCur >= _eMatches.length) _eCur = _eMatches.length > 0 ? 0 : -1;
+    }
     buildBackdrop();
-    if (_eMatches.length) scrollToMatch(_eCur);
+    // ZÁMĚRNĚ nevoláme scrollToMatch — uživatel teprve píše výraz
   };
 
   window.editNextMatch = function() {
-    if (!_eMatches.length) { window.editRunSearch(); return; }
-    _eCur = (_eCur + 1) % _eMatches.length;
+    const q = (document.getElementById('editSearchInput') || {}).value || '';
+    if (!q.trim()) return;
+    // Při prvním Enter spustí buildBackdrop a teprve pak naviguje
+    if (!_eMatches.length) { buildBackdrop(); }
+    if (!_eMatches.length) return;
+    _eCur = _eCur < 0 ? 0 : (_eCur + 1) % _eMatches.length;
     buildBackdrop();
     scrollToMatch(_eCur);
   };
 
   window.editPrevMatch = function() {
-    if (!_eMatches.length) { window.editRunSearch(); return; }
-    _eCur = (_eCur - 1 + _eMatches.length) % _eMatches.length;
+    const q = (document.getElementById('editSearchInput') || {}).value || '';
+    if (!q.trim()) return;
+    if (!_eMatches.length) { buildBackdrop(); }
+    if (!_eMatches.length) return;
+    _eCur = _eCur < 0 ? _eMatches.length - 1 : (_eCur - 1 + _eMatches.length) % _eMatches.length;
     buildBackdrop();
     scrollToMatch(_eCur);
   };
